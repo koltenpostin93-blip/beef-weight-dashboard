@@ -57,7 +57,7 @@ except Exception:
 BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 
 st.set_page_config(
-    page_title="JSA Beef Weight Dashboard",
+    page_title="JSA Beef Dashboard - USDA Beef Slaughter Weights",
     page_icon="🐂",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -312,10 +312,23 @@ def _base_layout(title: str = "", height: int = 420, y_title: str = "") -> dict:
     )
 
 
-def _apply(fig, title="", height=420, y_title=""):
+def _apply(fig, title="", height=420, y_title="", y_range=None):
     fig.update_layout(**_base_layout(title, height, y_title))
     fig.update_xaxes(**AXIS_STYLE)
-    fig.update_yaxes(**AXIS_STYLE, title_text=y_title)
+    if y_range:
+        fig.update_yaxes(**AXIS_STYLE, title_text=y_title, range=y_range)
+    else:
+        fig.update_yaxes(**AXIS_STYLE, title_text=y_title, autorange=True)
+
+
+def _tight_range(series, pad_pct=0.04):
+    """Return [min, max] with a small padding for a tight Y axis."""
+    vals = [v for v in series if v is not None and not pd.isna(v)]
+    if not vals:
+        return None
+    lo, hi = min(vals), max(vals)
+    pad = (hi - lo) * pad_pct if hi != lo else hi * pad_pct
+    return [lo - pad, hi + pad]
 
 
 def _to_excel(df: pd.DataFrame) -> bytes:
@@ -443,7 +456,10 @@ with hdr_l:
       <img src="{JSA_LOGO_FULL}" style="height:48px" />
       <div>
         <div style="font-size:1.45rem;font-weight:700;color:{DM_TEXT};line-height:1.1">
-          Beef Slaughter Weight
+          JSA Beef Dashboard
+        </div>
+        <div style="font-size:0.95rem;font-weight:500;color:{DM_MUTED};line-height:1.2">
+          USDA Beef Slaughter Weights
         </div>
         <div style="color:{DM_MUTED};font-size:0.8rem;margin-top:2px">
           Weekly snapshot &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; Federally Inspected
@@ -725,7 +741,9 @@ with tab_trend:
             hovertemplate="4-wk avg: %{y:,.1f} lb<extra></extra>",
         ))
 
-        _apply(fig, f"{cls.title()} — {weight_unit} · Last {trend_weeks} Weeks", 440, "lb / head")
+        _wt_vals = list(curr_yr["Value"]) + list(prev_yr["Value"]) + [v for v in olym_y if not pd.isna(v)]
+        _apply(fig, f"{cls.title()} — {weight_unit} · Last {trend_weeks} Weeks", 440, "lb / head",
+               y_range=_tight_range(_wt_vals))
         st.plotly_chart(fig, use_container_width=True)
 
         # WoW delta bars
@@ -894,7 +912,10 @@ with tab_vol:
                 line=dict(color=CLASS_COLORS.get(cls, DM_MUTED), width=2),
                 hovertemplate="%{y:,.0f} head<extra>%{fullData.name}</extra>",
             ))
-        _apply(fig6, f"Weekly Slaughter — Head Count · Last {trend_weeks} Weeks", 420, "Head")
+        _vol_vals = [v for cls in vol_cls
+                     for v in vol[(vol["class_desc"]==cls)&(vol["week_ending"]>vol_cutoff)]["Value"]]
+        _apply(fig6, f"Weekly Slaughter — Head Count · Last {trend_weeks} Weeks", 420, "Head",
+               y_range=_tight_range(_vol_vals))
         st.plotly_chart(fig6, use_container_width=True)
 
         # Latest week pie
