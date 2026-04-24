@@ -414,56 +414,6 @@ for col, cls in zip(cols, snap_classes):
 st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
 
-# ── Summary comparison table ───────────────────────────────────────────────────
-
-def _fmt_delta(val: float, pct: float, suffix: str = " lb") -> str:
-    if pd.isna(val):
-        return "—"
-    sign = "+" if val >= 0 else ""
-    css  = "pos" if val >= 0 else "neg"
-    p    = f" ({sign}{pct:.1f}%)" if not pd.isna(pct) else ""
-    return f'<span class="{css}">{sign}{val:.1f}{suffix}{p}</span>'
-
-
-def _build_summary(classes: list) -> str:
-    rows = ""
-    for cls in classes:
-        kpi = week_kpis(wt, cls)
-        cur = f'{kpi["current"]:,.1f}' if not pd.isna(kpi["current"]) else "—"
-        t4  = f'{kpi["t4w"]:,.1f}' if not pd.isna(kpi["t4w"]) else "—"
-        rows += f"""<tr>
-          <td>{cls.title()}</td>
-          <td>{cur} lb</td>
-          <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'])}</td>
-          <td>{t4} lb</td>
-          <td>{_fmt_delta(kpi['yoy'], kpi['yoy_pct'])}</td>
-          <td>{_fmt_delta(kpi['vs_olympic'], kpi['vs_olympic_pct'])}</td>
-        </tr>"""
-    return f"""
-    <table class="sum-table">
-      <thead><tr>
-        <th>Class</th>
-        <th>This Week</th>
-        <th>WoW Change</th>
-        <th>4-Wk Avg</th>
-        <th>vs Last Year</th>
-        <th>vs Olympic Avg</th>
-      </tr></thead>
-      <tbody>{rows}</tbody>
-    </table>"""
-
-
-st.markdown(f'<div class="sec-hdr">Weekly Summary — All Classes</div>', unsafe_allow_html=True)
-st.markdown(
-    f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-radius:8px;padding:12px 16px">'
-    + _build_summary(CLASS_ORDER)
-    + "</div>",
-    unsafe_allow_html=True,
-)
-
-st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
-
-
 # ── Slaughter Volume Snapshot ──────────────────────────────────────────────────
 
 def vol_kpis(vol_df: pd.DataFrame, cls: str) -> dict:
@@ -525,6 +475,56 @@ vol_cols = st.columns(len(vol_snap_classes))
 for col, cls in zip(vol_cols, vol_snap_classes):
     kpi = vol_kpis(vol, cls)
     col.markdown(_vol_card(cls, kpi), unsafe_allow_html=True)
+
+st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
+
+# ── Weight Summary table ───────────────────────────────────────────────────────
+
+def _fmt_delta(val: float, pct: float, suffix: str = " lb") -> str:
+    if pd.isna(val):
+        return "—"
+    sign = "+" if val >= 0 else ""
+    css  = "pos" if val >= 0 else "neg"
+    p    = f" ({sign}{pct:.1f}%)" if not pd.isna(pct) else ""
+    return f'<span class="{css}">{sign}{val:.1f}{suffix}{p}</span>'
+
+
+def _build_summary(classes: list) -> str:
+    rows = ""
+    for cls in classes:
+        kpi = week_kpis(wt, cls)
+        cur = f'{kpi["current"]:,.1f}' if not pd.isna(kpi["current"]) else "—"
+        t4  = f'{kpi["t4w"]:,.1f}' if not pd.isna(kpi["t4w"]) else "—"
+        rows += f"""<tr>
+          <td>{cls.title()}</td>
+          <td>{cur} lb</td>
+          <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'])}</td>
+          <td>{t4} lb</td>
+          <td>{_fmt_delta(kpi['yoy'], kpi['yoy_pct'])}</td>
+          <td>{_fmt_delta(kpi['vs_olympic'], kpi['vs_olympic_pct'])}</td>
+        </tr>"""
+    return f"""
+    <table class="sum-table">
+      <thead><tr>
+        <th>Class</th>
+        <th>This Week</th>
+        <th>WoW Change</th>
+        <th>4-Wk Avg</th>
+        <th>vs Last Year</th>
+        <th>vs Olympic Avg</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+
+
+st.markdown(f'<div class="sec-hdr">Weight Summary — All Classes</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-radius:8px;padding:12px 16px">'
+    + _build_summary(CLASS_ORDER)
+    + "</div>",
+    unsafe_allow_html=True,
+)
 
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
