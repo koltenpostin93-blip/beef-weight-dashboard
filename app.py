@@ -44,6 +44,10 @@ CLASS_DISPLAY = {
     "CALVES":     "Calves",
 }
 VOL_DISPLAY = {**CLASS_DISPLAY, "GE 500 LBS": "All Cattle"}
+FILTER_DISPLAY = {**CLASS_DISPLAY, "GE 500 LBS": "All Cattle"}
+
+def _fmt_cls(c: str) -> str:
+    return FILTER_DISPLAY.get(c, c.title())
 
 try:
     API_KEY = st.secrets.get("NASS_API_KEY", "9A6D1EB8-4D94-3221-BA0C-ADD4533EA0C1")
@@ -354,6 +358,7 @@ st.sidebar.markdown(f'<span style="color:{DM_MUTED};font-size:.72rem;text-transf
 snap_classes = st.sidebar.multiselect(
     "Snapshot classes", CLASS_ORDER,
     default=["GE 500 LBS", "STEERS", "HEIFERS", "COWS"],
+    format_func=_fmt_cls,
     label_visibility="collapsed",
 )
 if not snap_classes:
@@ -361,7 +366,7 @@ if not snap_classes:
 
 st.sidebar.divider()
 trend_weeks = st.sidebar.slider("Trend window (weeks)", 8, 52, 26)
-trend_class = st.sidebar.selectbox("Trend class", CLASS_ORDER)
+trend_class = st.sidebar.selectbox("Trend class", CLASS_ORDER, format_func=_fmt_cls)
 
 
 # ── Load data ──────────────────────────────────────────────────────────────────
@@ -698,6 +703,7 @@ with tab_yoy:
     yoy_cls = st.selectbox(
         "Class",
         [c for c in CLASS_ORDER if not wt[wt["class_desc"] == c].empty],
+        format_func=_fmt_cls,
         key="yoy_cls",
     )
     n_years = st.slider("Years to compare", 3, 10, 6, key="yoy_n")
@@ -822,6 +828,7 @@ with tab_vol:
             "Classes",
             CLASS_ORDER,
             default=["GE 500 LBS", "STEERS", "HEIFERS"],
+            format_func=_fmt_cls,
             key="vol_cls",
         )
         if not vol_cls:
@@ -875,6 +882,7 @@ with tab_data:
         tbl_cls = st.multiselect(
             "Classes", CLASS_ORDER,
             default=["GE 500 LBS", "STEERS", "HEIFERS"],
+            format_func=_fmt_cls,
             key="tbl_cls",
         )
     with c2:
