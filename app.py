@@ -1183,32 +1183,41 @@ with tab_ams:
             ytd_prev = slaughter.get(f"YTD_{(curr_date.year-1) if curr_date else ''}", {}).get(sp, float("nan"))
             ytd_chg  = (ytd_curr - ytd_prev) / ytd_prev * 100 if not (pd.isna(ytd_curr) or pd.isna(ytd_prev) or ytd_prev == 0) else float("nan")
 
-            def _d(v, pct=False):
+            def _fd(v, pct=False):
                 if pd.isna(v): return "—"
                 return f"{v:+.1f}%" if pct else f"{v:+,.0f}"
-            def _col(v): return COL_POS if (not pd.isna(v) and v >= 0) else COL_NEG
+            def _fc(v): return COL_POS if (not pd.isna(v) and v >= 0) else COL_NEG
+
+            cv_str      = "—" if pd.isna(curr_val) else f"{curr_val:,.0f}"
+            wow_str     = _fd(wow_pct, True)
+            yoy_str     = _fd(yoy_pct, True)
+            ytd_str     = _fd(ytd_chg, True)
+            wow_col     = _fc(wow)
+            yoy_col     = _fc(yoy)
+            ytd_col     = _fc(ytd_chg)
+            top_color   = sp_colors.get(sp, JSA_GREEN)
 
             col.markdown(f"""
             <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
-              border-top:3px solid {sp_colors.get(sp, JSA_GREEN)};
+              border-top:3px solid {top_color};
               border-radius:6px;padding:14px 16px;height:100%">
               <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;
                 letter-spacing:.07em;margin-bottom:6px">{sp}</div>
               <div style="color:{DM_TEXT};font-size:1.5rem;font-weight:700;margin-bottom:8px">
-                {curr_val:,.0f if not pd.isna(curr_val) else '—'}
+                {cv_str}
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <span style="background:{DM_SURFACE2};border-radius:3px;
-                  padding:2px 7px;font-size:0.68rem;color:{_col(wow)}">
-                  WoW {_d(wow_pct, True)}
+                  padding:2px 7px;font-size:0.68rem;color:{wow_col}">
+                  WoW {wow_str}
                 </span>
                 <span style="background:{DM_SURFACE2};border-radius:3px;
-                  padding:2px 7px;font-size:0.68rem;color:{_col(yoy)}">
-                  YoY {_d(yoy_pct, True)}
+                  padding:2px 7px;font-size:0.68rem;color:{yoy_col}">
+                  YoY {yoy_str}
                 </span>
               </div>
               <div style="margin-top:8px;color:{DM_MUTED};font-size:0.7rem">
-                YTD: <span style="color:{_col(ytd_chg)}">{_d(ytd_chg, True)}</span>
+                YTD: <span style="color:{ytd_col}">{ytd_str}</span>
                 vs prior year
               </div>
             </div>
@@ -1232,8 +1241,12 @@ with tab_ams:
             wow_w = cv - pv if not (pd.isna(cv) or pd.isna(pv)) else float("nan")
             yoy_w = cv - yv if not (pd.isna(cv) or pd.isna(yv)) else float("nan")
 
-            def _dw(v): return "—" if pd.isna(v) else f"{v:+.1f} lb"
-            def _cw(v): return COL_POS if (not pd.isna(v) and v >= 0) else COL_NEG
+            cv_str_w  = "—" if pd.isna(cv) else f"{cv:,.0f} lb"
+            wow_str_w = "—" if pd.isna(wow_w) else f"{wow_w:+.1f} lb"
+            yoy_str_w = "—" if pd.isna(yoy_w) else f"{yoy_w:+.1f} lb"
+            wow_col_w = COL_POS if (not pd.isna(wow_w) and wow_w >= 0) else COL_NEG
+            yoy_col_w = COL_POS if (not pd.isna(yoy_w) and yoy_w >= 0) else COL_NEG
+            yoy_span  = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 7px;font-size:0.68rem;color:{yoy_col_w}">YoY {yoy_str_w}</span>' if y_d else ""
 
             col.markdown(f"""
             <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
@@ -1241,14 +1254,14 @@ with tab_ams:
               <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;
                 letter-spacing:.07em;margin-bottom:6px">{label}</div>
               <div style="color:{DM_TEXT};font-size:1.5rem;font-weight:700;margin-bottom:8px">
-                {'—' if pd.isna(cv) else f'{cv:,.0f} lb'}
+                {cv_str_w}
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <span style="background:{DM_SURFACE2};border-radius:3px;
-                  padding:2px 7px;font-size:0.68rem;color:{_cw(wow_w)}">
-                  WoW {_dw(wow_w)}
+                  padding:2px 7px;font-size:0.68rem;color:{wow_col_w}">
+                  WoW {wow_str_w}
                 </span>
-                {'<span style="background:' + DM_SURFACE2 + ';border-radius:3px;padding:2px 7px;font-size:0.68rem;color:' + _cw(yoy_w) + '">YoY ' + _dw(yoy_w) + '</span>' if y_d else ''}
+                {yoy_span}
               </div>
             </div>
             """, unsafe_allow_html=True)
