@@ -426,9 +426,7 @@ st.sidebar.markdown(f"""
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
     <span style="color:{DM_MUTED}">Next update</span>
-    <span style="color:{'#8db89a' if _next_friday == _today else DM_TEXT};font-weight:600">
-      {"Today" if _next_friday == _today else _next_friday.strftime('%b %d, %Y')}
-    </span>
+    <span style="color:{DM_TEXT};font-weight:600">{_next_friday.strftime('%b %d, %Y')}</span>
   </div>
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
