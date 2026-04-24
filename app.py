@@ -1275,14 +1275,20 @@ with tab_ams:
             mix_colors = [CLASS_COLORS["STEERS"], CLASS_COLORS["HEIFERS"],
                           CLASS_COLORS["COWS"], CLASS_COLORS["BULLS"]]
 
+            def _hex_to_rgba(h, a=1.0):
+                h = h.lstrip("#")
+                r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+                return f"rgba({r},{g},{b},{a})"
+
             fig_mix = go.Figure()
             for i, md in enumerate(mix_dates[:2]):
                 row = class_mix[md]
+                colors = mix_colors if i == 0 else [_hex_to_rgba(c, 0.45) for c in mix_colors]
                 fig_mix.add_trace(go.Bar(
                     name=md.strftime("Wk %b %d, %Y"),
                     x=mix_labels,
                     y=[row.get(l, 0) for l in mix_labels],
-                    marker_color=mix_colors if i == 0 else [c + "88" for c in mix_colors],
+                    marker_color=colors,
                     text=[f"{row.get(l, 0):.1f}%" for l in mix_labels],
                     textposition="outside",
                 ))
