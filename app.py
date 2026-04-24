@@ -414,19 +414,24 @@ st.sidebar.markdown(f"""
   <div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;
     letter-spacing:.08em;margin-bottom:8px">Data Status</div>
 
-  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-    <span style="color:{DM_MUTED}">Weights as of</span>
+  <div style="color:{DM_MUTED};font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Weights</div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+    <span style="color:{DM_MUTED}">Report date</span>
     <span style="color:{DM_TEXT};font-weight:600">{latest_date.strftime('%b %d, %Y')}</span>
   </div>
-
-  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-    <span style="color:{DM_MUTED}">Volume as of</span>
-    <span style="color:{DM_TEXT};font-weight:600">{vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else 'N/A'}</span>
-  </div>
-
-  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px">
     <span style="color:{DM_MUTED}">ISO Week</span>
     <span style="color:{DM_TEXT};font-weight:600">Wk {latest_iso}, {latest_year}</span>
+  </div>
+
+  <div style="color:{DM_MUTED};font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Slaughter Volume</div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+    <span style="color:{DM_MUTED}">Report date</span>
+    <span style="color:{'#fbbf24' if vol_latest_date is not None and vol_latest_date != latest_date else DM_TEXT};font-weight:600">{vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else 'N/A'}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+    <span style="color:{DM_MUTED}">ISO Week</span>
+    <span style="color:{DM_TEXT};font-weight:600">{f"Wk {int(vol_latest_date.isocalendar()[1])}, {vol_latest_date.year}" if vol_latest_date is not None else 'N/A'}</span>
   </div>
 
   <div style="border-top:1px solid {DM_BORDER};margin:8px 0"></div>
@@ -470,12 +475,21 @@ with hdr_l:
     </div>
     """, unsafe_allow_html=True)
 with hdr_r:
+    _vol_str = vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else "N/A"
+    _wt_str  = latest_date.strftime('%b %d, %Y')
+    _dates_match = vol_latest_date is not None and vol_latest_date == latest_date
     st.markdown(f"""
-    <div style="text-align:right;padding-top:10px">
-      <div style="color:{DM_MUTED};font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em">Week Ending</div>
-      <div style="color:{DM_TEXT};font-size:1.1rem;font-weight:700">{latest_date.strftime('%B %d, %Y')}</div>
+    <div style="text-align:right;padding-top:6px;font-size:0.75rem">
+      <div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-bottom:3px">
+        <span style="color:{DM_MUTED}">Weights as of</span>
+        <span style="color:{DM_TEXT};font-weight:700;font-size:0.95rem">{_wt_str}</span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-bottom:6px">
+        <span style="color:{DM_MUTED}">Slaughter vol as of</span>
+        <span style="color:{'#fbbf24' if not _dates_match else DM_TEXT};font-weight:700;font-size:0.95rem">{_vol_str}</span>
+      </div>
       <div style="display:inline-block;background:{JSA_GREEN};color:#fff;font-size:.68rem;
-        font-weight:600;padding:2px 8px;border-radius:3px;margin-top:4px;letter-spacing:.06em">
+        font-weight:600;padding:2px 8px;border-radius:3px;letter-spacing:.06em">
         {weight_unit.upper()}
       </div>
     </div>
