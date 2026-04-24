@@ -370,7 +370,7 @@ st.sidebar.markdown(f'<span style="color:{DM_MUTED};font-size:.72rem;text-transf
                     unsafe_allow_html=True)
 snap_classes = st.sidebar.multiselect(
     "Snapshot classes", CLASS_ORDER,
-    default=["GE 500 LBS", "STEERS", "HEIFERS", "COWS"],
+    default=["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS"],
     format_func=_fmt_cls,
     label_visibility="collapsed",
 )
@@ -454,7 +454,7 @@ with hdr_l:
       <img src="{JSA_LOGO_FULL}" style="height:48px" />
       <div>
         <div style="font-size:1.45rem;font-weight:700;color:{DM_TEXT};line-height:1.1">
-          Beef Slaughter Weight
+          USDA Beef Slaughter Weights
         </div>
         <div style="color:{DM_MUTED};font-size:0.8rem;margin-top:2px">
           Weekly snapshot &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; Federally Inspected
