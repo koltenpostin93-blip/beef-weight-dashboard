@@ -190,12 +190,12 @@ def _nearest_week(df: pd.DataFrame, year: int, iso_week: int) -> float:
 
 
 def olympic_avg(df: pd.DataFrame, ref_year: int, iso_week: int, n: int = 5) -> float:
-    """Drop highest + lowest of the n prior years, average the rest."""
+    """Simple average of the n prior years for the same ISO week."""
     vals = [_nearest_week(df, ref_year - i, iso_week) for i in range(1, n + 1)]
     vals = [v for v in vals if not pd.isna(v)]
-    if len(vals) < 3:
+    if not vals:
         return float("nan")
-    return (sum(vals) - max(vals) - min(vals)) / (len(vals) - 2)
+    return sum(vals) / len(vals)
 
 
 def olympic_series(df: pd.DataFrame, ref_year: int, n: int = 5) -> pd.Series:
@@ -288,10 +288,10 @@ def _snap_card(cls: str, kpi: dict, unit_label: str) -> str:
         {_snap_item("WoW", _dc(kpi['wow'], '+.1f', ' lb') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
         {_snap_item("YoY", _dc(kpi['yoy'], '+.1f', ' lb') + ' ' + _dc(kpi['yoy_pct'], '+.1f', '%'))}
         {_snap_item("4-Wk Avg", f'<span class="snap-neu">{t4w_str} lb</span>')}
-        {_snap_item("vs Olympic Avg", _dc(kpi['vs_olympic'], '+.1f', ' lb') + ' ' + _dc(kpi['vs_olympic_pct'], '+.1f', '%'))}
+        {_snap_item("vs 5yr Avg", _dc(kpi['vs_olympic'], '+.1f', ' lb') + ' ' + _dc(kpi['vs_olympic_pct'], '+.1f', '%'))}
       </div>
       <div style="margin-top:8px;font-size:0.7rem;color:{DM_MUTED}">
-        Olympic avg: {olym_str} lb &nbsp;·&nbsp; {unit_label}
+        5yr avg: {olym_str} lb &nbsp;·&nbsp; {unit_label}
       </div>
     </div>"""
 
@@ -533,10 +533,10 @@ def _vol_card(cls: str, kpi: dict) -> str:
         {_snap_item("WoW", _dc(kpi['wow'], '+.0f', ' hd') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
         {_snap_item("YoY", _dc(kpi['yoy'], '+.0f', ' hd') + ' ' + _dc(kpi['yoy_pct'], '+.1f', '%'))}
         {_snap_item("4-Wk Avg", f'<span class="snap-neu">{t4w_str} hd</span>')}
-        {_snap_item("vs Olympic Avg", _dc(kpi['vs_olympic'], '+.0f', ' hd') + ' ' + _dc(kpi['vs_olympic_pct'], '+.1f', '%'))}
+        {_snap_item("vs 5yr Avg", _dc(kpi['vs_olympic'], '+.0f', ' hd') + ' ' + _dc(kpi['vs_olympic_pct'], '+.1f', '%'))}
       </div>
       <div style="margin-top:8px;font-size:0.7rem;color:{DM_MUTED}">
-        Olympic avg: {olym_str} head
+        5yr avg: {olym_str} head
       </div>
     </div>"""
 
@@ -584,7 +584,7 @@ def _build_summary(classes: list) -> str:
         <th>WoW Change</th>
         <th>4-Wk Avg</th>
         <th>vs Last Year</th>
-        <th>vs Olympic Avg</th>
+        <th>vs 5yr Avg</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>"""
@@ -612,7 +612,7 @@ def _build_vol_summary(classes: list) -> str:
         <th>WoW Change</th>
         <th>4-Wk Avg</th>
         <th>vs Last Year</th>
-        <th>vs Olympic Avg</th>
+        <th>vs 5yr Avg</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>"""
@@ -701,10 +701,10 @@ with tab_trend:
         # Olympic avg line
         fig.add_trace(go.Scatter(
             x=olym_x, y=olym_y,
-            name="Olympic Avg (5yr)",
+            name="5yr Avg",
             mode="lines",
             line=dict(color="rgba(122,153,144,0.7)", width=1.8, dash="dash"),
-            hovertemplate="Olympic avg: %{y:,.1f} lb<extra></extra>",
+            hovertemplate="5yr avg: %{y:,.1f} lb<extra></extra>",
         ))
 
         # Prior year
@@ -807,10 +807,10 @@ with tab_yoy:
         ))
         fig3.add_trace(go.Scatter(
             x=all_doys, y=olym_y_all,
-            name="Olympic Avg",
+            name="5yr Avg",
             mode="lines",
             line=dict(color="rgba(122,153,144,0.7)", width=1.8, dash="dash"),
-            hovertemplate="Olympic avg: %{y:,.1f} lb<extra></extra>",
+            hovertemplate="5yr avg: %{y:,.1f} lb<extra></extra>",
         ))
 
         for yr in yr_list:
@@ -851,17 +851,17 @@ with tab_yoy:
         ))
         fig4.add_trace(go.Scatter(
             x=wk_df["Year"], y=wk_df["Olympic"],
-            name="Olympic Avg",
+            name="5yr Avg",
             mode="lines+markers",
             line=dict(color=DM_MUTED, dash="dash", width=1.5),
-            hovertemplate="Olympic avg: %{y:,.1f} lb<extra></extra>",
+            hovertemplate="5yr avg: %{y:,.1f} lb<extra></extra>",
         ))
         _apply(fig4, f"ISO Week {latest_iso} — Historical Comparison", 300, "lb / head")
         fig4.update_xaxes(tickmode="linear", dtick=1)
         st.plotly_chart(fig4, use_container_width=True)
 
         # ── YoY delta vs Olympic avg ──────────────────────────────────────────
-        st.markdown('<div class="sec-hdr">Current Year vs Olympic Avg — Weekly Delta</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-hdr">Current Year vs 5yr Avg — Weekly Delta</div>', unsafe_allow_html=True)
         curr_full = yoy_sub[yoy_sub["year"] == ly_max].sort_values("iso_week")
         olym_curr = [olympic_avg(yoy_sub, ly_max, w) for w in curr_full["iso_week"]]
         curr_full = curr_full.copy()
@@ -874,7 +874,7 @@ with tab_yoy:
             hovertemplate="%{x|%b %d}: %{y:+.1f} lb vs Olympic avg<extra></extra>",
         ))
         fig5.add_hline(y=0, line_color=DM_BORDER)
-        _apply(fig5, f"{ly_max} vs Olympic Avg — Weekly \u0394", 260, "\u0394 lb / head")
+        _apply(fig5, f"{ly_max} vs 5yr Avg — Weekly \u0394", 260, "\u0394 lb / head")
         st.plotly_chart(fig5, use_container_width=True)
 
 
