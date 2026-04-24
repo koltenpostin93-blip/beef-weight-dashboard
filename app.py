@@ -5,7 +5,7 @@ import requests
 import io
 from datetime import datetime
 
-# ── Theme ─────────────────────────────────────────────────────────────────────
+# ── Theme ──────────────────────────────────────────────────────────────────────
 DM_BG       = "#0e1614"
 DM_SURFACE  = "#162019"
 DM_SURFACE2 = "#1e2e2a"
@@ -13,24 +13,26 @@ DM_BORDER   = "#243328"
 DM_TEXT     = "#e4e8f0"
 DM_MUTED    = "#7a9990"
 JPSI_GREEN  = "#4ade80"
+COL_POS     = "#4ade80"
+COL_NEG     = "#f87171"
+COL_NEU     = "#7a9990"
 
 CLASS_COLORS = {
-    "STEERS":    "#4ade80",
-    "HEIFERS":   "#60a5fa",
-    "COWS":      "#f97316",
-    "BULLS":     "#a78bfa",
-    "CALVES":    "#fbbf24",
+    "STEERS":     "#4ade80",
+    "HEIFERS":    "#60a5fa",
+    "COWS":       "#f97316",
+    "BULLS":      "#a78bfa",
+    "CALVES":     "#fbbf24",
     "GE 500 LBS": "#e4e8f0",
 }
+CLASS_ORDER = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]
 
 try:
     API_KEY = st.secrets.get("NASS_API_KEY", "9A6D1EB8-4D94-3221-BA0C-ADD4533EA0C1")
 except Exception:
     API_KEY = "9A6D1EB8-4D94-3221-BA0C-ADD4533EA0C1"
-BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 
-CLASSES_WEIGHT = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]
-CLASSES_VOLUME = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]
+BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 
 st.set_page_config(
     page_title="Beef Weight Dashboard",
@@ -42,35 +44,67 @@ st.set_page_config(
 st.markdown(f"""
 <style>
   html, body, [data-testid="stAppViewContainer"] {{
-    background-color: {DM_BG}; color: {DM_TEXT};
+    background-color:{DM_BG}; color:{DM_TEXT};
   }}
   [data-testid="stSidebar"] {{
-    background-color: {DM_SURFACE};
-    border-right: 1px solid {DM_BORDER};
+    background-color:{DM_SURFACE}; border-right:1px solid {DM_BORDER};
   }}
-  [data-testid="stSidebar"] * {{ color: {DM_TEXT} !important; }}
-  .metric-card {{
-    background: {DM_SURFACE}; border: 1px solid {DM_BORDER};
-    border-radius: 8px; padding: 16px 20px; text-align: center;
+  [data-testid="stSidebar"] * {{ color:{DM_TEXT} !important; }}
+
+  /* ── Snapshot card ── */
+  .snap-card {{
+    background:{DM_SURFACE}; border:1px solid {DM_BORDER};
+    border-radius:10px; padding:18px 16px 14px; height:100%;
   }}
-  .metric-label {{ color: {DM_MUTED}; font-size: 0.78rem; text-transform: uppercase;
-    letter-spacing: 0.06em; margin-bottom: 4px; }}
-  .metric-value {{ color: {DM_TEXT}; font-size: 1.6rem; font-weight: 700; }}
-  .metric-delta-pos {{ color: #4ade80; font-size: 0.85rem; }}
-  .metric-delta-neg {{ color: #f87171; font-size: 0.85rem; }}
-  .metric-delta-neu {{ color: {DM_MUTED}; font-size: 0.85rem; }}
-  .section-header {{ color: {DM_MUTED}; font-size: 0.75rem; text-transform: uppercase;
-    letter-spacing: 0.1em; margin: 8px 0 4px; }}
-  div[data-testid="stDataFrame"] {{ background: {DM_SURFACE}; border-radius: 8px; }}
-  .stTabs [data-baseweb="tab-list"] {{ background: {DM_SURFACE}; border-radius: 8px; }}
-  .stTabs [data-baseweb="tab"] {{ color: {DM_MUTED}; }}
-  .stTabs [aria-selected="true"] {{ color: {JPSI_GREEN} !important; }}
-  h1, h2, h3 {{ color: {DM_TEXT}; }}
+  .snap-class {{
+    color:{DM_MUTED}; font-size:0.72rem; text-transform:uppercase;
+    letter-spacing:.08em; margin-bottom:6px;
+  }}
+  .snap-value {{
+    color:{DM_TEXT}; font-size:2rem; font-weight:700; line-height:1.1;
+    margin-bottom:10px;
+  }}
+  .snap-grid {{
+    display:grid; grid-template-columns:1fr 1fr; gap:6px 10px;
+  }}
+  .snap-item {{ display:flex; flex-direction:column; }}
+  .snap-lbl {{
+    color:{DM_MUTED}; font-size:0.65rem; text-transform:uppercase;
+    letter-spacing:.06em;
+  }}
+  .snap-pos {{ color:{COL_POS}; font-size:0.88rem; font-weight:600; }}
+  .snap-neg {{ color:{COL_NEG}; font-size:0.88rem; font-weight:600; }}
+  .snap-neu {{ color:{COL_NEU}; font-size:0.88rem; }}
+
+  /* ── Summary table ── */
+  .sum-table {{ width:100%; border-collapse:collapse; font-size:0.82rem; }}
+  .sum-table th {{
+    color:{DM_MUTED}; font-weight:500; text-transform:uppercase;
+    font-size:0.68rem; letter-spacing:.06em; padding:6px 10px;
+    border-bottom:1px solid {DM_BORDER}; text-align:right;
+  }}
+  .sum-table th:first-child {{ text-align:left; }}
+  .sum-table td {{
+    padding:7px 10px; border-bottom:1px solid {DM_BORDER};
+    text-align:right; color:{DM_TEXT};
+  }}
+  .sum-table td:first-child {{ text-align:left; font-weight:600; }}
+  .sum-table tr:last-child td {{ border-bottom:none; }}
+  .pos {{ color:{COL_POS}; }} .neg {{ color:{COL_NEG}; }}
+
+  .stTabs [data-baseweb="tab-list"] {{ background:{DM_SURFACE}; border-radius:8px; }}
+  .stTabs [data-baseweb="tab"] {{ color:{DM_MUTED}; }}
+  .stTabs [aria-selected="true"] {{ color:{JPSI_GREEN} !important; }}
+  .sec-hdr {{
+    color:{DM_MUTED}; font-size:0.72rem; text-transform:uppercase;
+    letter-spacing:.1em; margin:14px 0 6px;
+  }}
+  div[data-testid="stDataFrame"] {{ background:{DM_SURFACE}; border-radius:8px; }}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Data fetching ─────────────────────────────────────────────────────────────
+# ── Data fetching ──────────────────────────────────────────────────────────────
 
 def _nass_get(params: dict) -> dict:
     for attempt in range(3):
@@ -86,7 +120,7 @@ def _nass_get(params: dict) -> dict:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_slaughter_weights(years: tuple) -> pd.DataFrame:
+def fetch_data(years: tuple) -> pd.DataFrame:
     frames = []
     for year in years:
         params = {
@@ -104,104 +138,159 @@ def fetch_slaughter_weights(years: tuple) -> pd.DataFrame:
         payload = _nass_get(params)
         if "data" in payload and payload["data"]:
             frames.append(pd.DataFrame(payload["data"]))
-
     if not frames:
         return pd.DataFrame()
 
     df = pd.concat(frames, ignore_index=True)
-    keep = ["year", "week_ending", "class_desc", "unit_desc", "Value", "reference_period_desc"]
+    keep = ["year", "week_ending", "class_desc", "unit_desc", "Value"]
     df = df[[c for c in keep if c in df.columns]].copy()
-    df["Value"]       = pd.to_numeric(df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce")
+    df["Value"]       = pd.to_numeric(
+        df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce"
+    )
     df["week_ending"] = pd.to_datetime(df["week_ending"], errors="coerce")
     df["year"]        = df["year"].astype(int)
     df["class_desc"]  = df["class_desc"].str.upper().str.strip()
     df["unit_desc"]   = df["unit_desc"].str.strip()
-    df = df.dropna(subset=["Value", "week_ending"])
-    return df
+    df["iso_week"]    = df["week_ending"].dt.isocalendar().week.astype(int)
+    return df.dropna(subset=["Value", "week_ending"])
 
 
-def weight_df(raw: pd.DataFrame, unit: str) -> pd.DataFrame:
-    return raw[raw["unit_desc"].str.contains(unit, case=False, na=False)].copy()
+# ── Analytics helpers ──────────────────────────────────────────────────────────
 
-
-def volume_df(raw: pd.DataFrame) -> pd.DataFrame:
-    return raw[raw["unit_desc"].str.strip().str.upper() == "HEAD"].copy()
-
-
-def _pivot_by_class(df: pd.DataFrame, classes: list, value_col: str = "Value") -> pd.DataFrame:
-    df = df[df["class_desc"].isin(classes)].copy()
-    return df.pivot_table(
-        index=["year", "week_ending"], columns="class_desc",
-        values=value_col, aggfunc="mean"
-    ).reset_index()
-
-
-def compute_kpis(df: pd.DataFrame, class_desc: str) -> dict:
-    sub = df[df["class_desc"] == class_desc].sort_values("week_ending")
-    nan4 = {"current": float("nan"), "wow": float("nan"), "yoy": float("nan"), "avg5": float("nan")}
+def _nearest_week(df: pd.DataFrame, year: int, iso_week: int) -> float:
+    """Return the value for the closest ISO week in a given year."""
+    sub = df[df["year"] == year]
     if sub.empty:
-        return nan4
+        return float("nan")
+    idx = (sub["iso_week"] - iso_week).abs().idxmin()
+    return sub.loc[idx, "Value"]
+
+
+def olympic_avg(df: pd.DataFrame, ref_year: int, iso_week: int, n: int = 5) -> float:
+    """Drop highest + lowest of the n prior years, average the rest."""
+    vals = [_nearest_week(df, ref_year - i, iso_week) for i in range(1, n + 1)]
+    vals = [v for v in vals if not pd.isna(v)]
+    if len(vals) < 3:
+        return float("nan")
+    return (sum(vals) - max(vals) - min(vals)) / (len(vals) - 2)
+
+
+def olympic_series(df: pd.DataFrame, ref_year: int, n: int = 5) -> pd.Series:
+    """Olympic avg for every ISO week, returned as Series indexed by iso_week."""
+    weeks = sorted(df["iso_week"].unique())
+    return pd.Series(
+        {w: olympic_avg(df, ref_year, w, n) for w in weeks},
+        name="olympic_avg",
+    )
+
+
+def trailing_4wk(df: pd.DataFrame) -> pd.DataFrame:
+    """4-week rolling average per class, sorted by week_ending."""
+    return (
+        df.sort_values("week_ending")
+        .assign(t4w=lambda d: d.groupby("class_desc")["Value"]
+                .transform(lambda s: s.rolling(4, min_periods=1).mean()))
+    )
+
+
+def week_kpis(wt: pd.DataFrame, cls: str) -> dict:
+    """Compute all snapshot KPIs for one class."""
+    nan = dict(current=float("nan"), wow=float("nan"), wow_pct=float("nan"),
+               yoy=float("nan"), yoy_pct=float("nan"), t4w=float("nan"),
+               olympic=float("nan"), vs_olympic=float("nan"), vs_olympic_pct=float("nan"),
+               latest_date=None, latest_year=None, iso_week=None)
+
+    sub = wt[wt["class_desc"] == cls].sort_values("week_ending")
+    if sub.empty:
+        return nan
+
     latest_date = sub["week_ending"].max()
-    latest_year = sub.loc[sub["week_ending"] == latest_date, "year"].iloc[0]
-    current     = sub.loc[sub["week_ending"] == latest_date, "Value"].iloc[0]
+    latest_year = int(sub.loc[sub["week_ending"] == latest_date, "year"].iloc[0])
+    iso_week    = int(sub.loc[sub["week_ending"] == latest_date, "iso_week"].iloc[0])
+    current     = float(sub.loc[sub["week_ending"] == latest_date, "Value"].iloc[0])
 
     # WoW
-    prev_week = sub[sub["week_ending"] < latest_date]["week_ending"].max()
-    wow = current - sub.loc[sub["week_ending"] == prev_week, "Value"].iloc[0] if pd.notna(prev_week) else float("nan")
+    prev_dates = sub[sub["week_ending"] < latest_date]
+    if not prev_dates.empty:
+        prev_val = float(sub.loc[sub["week_ending"] == prev_dates["week_ending"].max(), "Value"].iloc[0])
+        wow = current - prev_val
+        wow_pct = wow / prev_val * 100 if prev_val else float("nan")
+    else:
+        wow = wow_pct = float("nan")
 
-    # YoY — same week number last year
-    wk_num = latest_date.isocalendar().week
-    ly = sub[sub["year"] == latest_year - 1]
-    ly_wk = ly.iloc[(ly["week_ending"].apply(lambda d: d.isocalendar().week) - wk_num).abs().argsort()]
-    yoy = current - ly_wk.iloc[0]["Value"] if not ly_wk.empty else float("nan")
+    # YoY — same ISO week, prior year
+    ly_val = _nearest_week(sub, latest_year - 1, iso_week)
+    yoy = current - ly_val if not pd.isna(ly_val) else float("nan")
+    yoy_pct = yoy / ly_val * 100 if (not pd.isna(ly_val) and ly_val) else float("nan")
 
-    # 5-yr avg for same week
-    avg5_years = range(latest_year - 5, latest_year)
-    vals = []
-    for yr in avg5_years:
-        yrdf = sub[sub["year"] == yr]
-        wks  = yrdf.iloc[(yrdf["week_ending"].apply(lambda d: d.isocalendar().week) - wk_num).abs().argsort()]
-        if not wks.empty:
-            vals.append(wks.iloc[0]["Value"])
-    avg5 = sum(vals) / len(vals) if vals else float("nan")
-    return {"current": current, "wow": wow, "yoy": yoy, "avg5": avg5}
+    # Trailing 4-week avg (including current week)
+    recent4 = sub.tail(4)["Value"]
+    t4w = float(recent4.mean()) if len(recent4) >= 1 else float("nan")
+
+    # Olympic avg
+    olym = olympic_avg(sub, latest_year, iso_week)
+    vs_olympic = current - olym if not pd.isna(olym) else float("nan")
+    vs_olympic_pct = vs_olympic / olym * 100 if (not pd.isna(olym) and olym) else float("nan")
+
+    return dict(current=current, wow=wow, wow_pct=wow_pct, yoy=yoy, yoy_pct=yoy_pct,
+                t4w=t4w, olympic=olym, vs_olympic=vs_olympic, vs_olympic_pct=vs_olympic_pct,
+                latest_date=latest_date, latest_year=latest_year, iso_week=iso_week)
 
 
-def _delta_html(val: float, unit: str = "lb") -> str:
+# ── Formatting helpers ─────────────────────────────────────────────────────────
+
+def _dc(val: float, fmt: str = "+.1f", suffix: str = "") -> str:
+    """Return a delta value with color class."""
     if pd.isna(val):
-        return f'<div class="metric-delta-neu">— {unit}</div>'
-    color_cls = "metric-delta-pos" if val >= 0 else "metric-delta-neg"
+        return f'<span class="snap-neu">—</span>'
+    cls = "snap-pos" if val >= 0 else "snap-neg"
     sign = "+" if val >= 0 else ""
-    return f'<div class="{color_cls}">{sign}{val:.1f} {unit}</div>'
+    return f'<span class="{cls}">{sign}{val:{fmt[1:]}}{suffix}</span>'
 
 
-def _metric_card(label: str, value: str, delta_html: str) -> str:
+def _snap_item(label: str, delta_html: str) -> str:
+    return f'<div class="snap-item"><span class="snap-lbl">{label}</span>{delta_html}</div>'
+
+
+def _snap_card(cls: str, kpi: dict, unit_label: str) -> str:
+    val_str = f'{kpi["current"]:,.1f}' if not pd.isna(kpi["current"]) else "—"
+    t4w_str = f'{kpi["t4w"]:,.1f}' if not pd.isna(kpi["t4w"]) else "—"
+    olym_str = f'{kpi["olympic"]:,.1f}' if not pd.isna(kpi["olympic"]) else "—"
+    color = CLASS_COLORS.get(cls, DM_MUTED)
     return f"""
-    <div class="metric-card">
-      <div class="metric-label">{label}</div>
-      <div class="metric-value">{value}</div>
-      {delta_html}
-    </div>
-    """
+    <div class="snap-card">
+      <div class="snap-class" style="color:{color}">{cls.title()}</div>
+      <div class="snap-value">{val_str} <span style="font-size:0.9rem;color:{DM_MUTED}">lb</span></div>
+      <div class="snap-grid">
+        {_snap_item("WoW", _dc(kpi['wow'], '+.1f', ' lb') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
+        {_snap_item("YoY", _dc(kpi['yoy'], '+.1f', ' lb') + ' ' + _dc(kpi['yoy_pct'], '+.1f', '%'))}
+        {_snap_item("4-Wk Avg", f'<span class="snap-neu">{t4w_str} lb</span>')}
+        {_snap_item("vs Olympic Avg", _dc(kpi['vs_olympic'], '+.1f', ' lb') + ' ' + _dc(kpi['vs_olympic_pct'], '+.1f', '%'))}
+      </div>
+      <div style="margin-top:8px;font-size:0.7rem;color:{DM_MUTED}">
+        Olympic avg: {olym_str} lb &nbsp;·&nbsp; {unit_label}
+      </div>
+    </div>"""
 
+
+# ── Chart helpers ──────────────────────────────────────────────────────────────
 
 AXIS_STYLE = dict(gridcolor=DM_BORDER, linecolor=DM_BORDER, showgrid=True)
 
 
-def _chart_layout(title: str = "") -> dict:
+def _base_layout(title: str = "", height: int = 420, y_title: str = "") -> dict:
     return dict(
-        title=dict(text=title, font=dict(color=DM_TEXT, size=14), x=0),
-        paper_bgcolor=DM_SURFACE2,
-        plot_bgcolor=DM_SURFACE2,
+        title=dict(text=title, font=dict(color=DM_TEXT, size=13), x=0),
+        paper_bgcolor=DM_SURFACE2, plot_bgcolor=DM_SURFACE2,
         font=dict(color=DM_TEXT, size=11),
-        legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor=DM_BORDER, borderwidth=0),
+        legend=dict(bgcolor="rgba(0,0,0,0)", borderwidth=0, font=dict(size=11)),
         margin=dict(l=50, r=20, t=40, b=40),
-        hovermode="x unified",
+        hovermode="x unified", height=height,
     )
 
 
-def _apply_chart(fig, title: str = "", height: int = 420, y_title: str = ""):
-    fig.update_layout(**_chart_layout(title), height=height)
+def _apply(fig, title="", height=420, y_title=""):
+    fig.update_layout(**_base_layout(title, height, y_title))
     fig.update_xaxes(**AXIS_STYLE)
     fig.update_yaxes(**AXIS_STYLE, title_text=y_title)
 
@@ -213,347 +302,462 @@ def _to_excel(df: pd.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Sidebar ────────────────────────────────────────────────────────────────────
 
-st.sidebar.image(
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/USDA_logo.svg/100px-USDA_logo.svg.png",
-    width=60,
-)
-st.sidebar.markdown(f"### Beef Weight Dashboard")
-st.sidebar.markdown(f'<span style="color:{DM_MUTED}; font-size:0.75rem;">Source: USDA NASS QuickStats</span>', unsafe_allow_html=True)
+st.sidebar.markdown("### 🐂 Beef Weight Dashboard")
+st.sidebar.markdown(f'<span style="color:{DM_MUTED};font-size:.75rem">USDA NASS · Federally Inspected</span>',
+                    unsafe_allow_html=True)
 st.sidebar.divider()
 
 current_year = datetime.now().year
-all_years    = list(range(2000, current_year + 1))
-default_start = max(2015, min(all_years))
+# Always load enough history for 5-yr olympic avg + trend charts
+LOAD_YEARS = tuple(range(current_year - 7, current_year + 1))
 
-year_range = st.sidebar.slider(
-    "Year Range",
-    min_value=2000,
-    max_value=current_year,
-    value=(default_start, current_year),
-    step=1,
-)
-selected_years = tuple(range(year_range[0], year_range[1] + 1))
-
-st.sidebar.divider()
-st.sidebar.markdown('<div class="section-header">Weight Metric</div>', unsafe_allow_html=True)
-weight_unit = st.sidebar.radio(
-    "Basis",
-    ["Dressed Weight", "Live Weight"],
-    label_visibility="collapsed",
-)
+weight_unit = st.sidebar.radio("Weight basis", ["Dressed Weight", "Live Weight"])
 unit_filter = "DRESSED" if weight_unit == "Dressed Weight" else "LIVE"
+unit_label  = "dressed basis" if unit_filter == "DRESSED" else "live basis"
 
 st.sidebar.divider()
-st.sidebar.markdown('<div class="section-header">Classes</div>', unsafe_allow_html=True)
-selected_classes = st.sidebar.multiselect(
-    "Classes",
-    CLASSES_WEIGHT,
-    default=["GE 500 LBS", "STEERS", "HEIFERS"],
+st.sidebar.markdown(f'<span style="color:{DM_MUTED};font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Classes — Snapshot</span>',
+                    unsafe_allow_html=True)
+snap_classes = st.sidebar.multiselect(
+    "Snapshot classes", CLASS_ORDER,
+    default=["GE 500 LBS", "STEERS", "HEIFERS", "COWS"],
     label_visibility="collapsed",
 )
-if not selected_classes:
-    selected_classes = ["GE 500 LBS"]
+if not snap_classes:
+    snap_classes = ["GE 500 LBS"]
 
 st.sidebar.divider()
-overlay_years_back = st.sidebar.slider("Years to overlay on chart", 1, 10, 5)
+trend_weeks = st.sidebar.slider("Trend window (weeks)", 8, 52, 26)
+trend_class = st.sidebar.selectbox("Trend class", CLASS_ORDER)
 
 
-# ── Load data ─────────────────────────────────────────────────────────────────
+# ── Load data ──────────────────────────────────────────────────────────────────
 
 with st.spinner("Loading USDA NASS data…"):
-    raw = fetch_slaughter_weights(selected_years)
+    raw = fetch_data(LOAD_YEARS)
 
 if raw.empty:
     st.error("No data returned from USDA NASS. Check your API key in st.secrets.")
     st.stop()
 
-wt_df = weight_df(raw, unit_filter)
-vol_df_raw = volume_df(raw)
+wt  = raw[raw["unit_desc"].str.contains(unit_filter, case=False, na=False)].copy()
+vol = raw[raw["unit_desc"].str.upper() == "HEAD"].copy()
+wt  = trailing_4wk(wt)
+
+latest_date = wt["week_ending"].max()
+latest_year = int(wt.loc[wt["week_ending"] == latest_date, "year"].iloc[0])
+latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# ── Header ─────────────────────────────────────────────────────────────────────
 
 st.markdown(f"""
-<h1 style="margin-bottom:0">🐂 Beef Slaughter Weight Dashboard</h1>
-<p style="color:{DM_MUTED}; margin-top:4px">
-  Weekly federally-inspected commercial slaughter weights &nbsp;·&nbsp;
-  USDA NASS QuickStats &nbsp;·&nbsp;
-  Updated weekly
+<h1 style="margin-bottom:2px">🐂 Beef Slaughter Weight</h1>
+<p style="color:{DM_MUTED};margin-top:0">
+  Weekly snapshot &nbsp;·&nbsp; Week ending
+  <strong style="color:{DM_TEXT}">{latest_date.strftime('%B %d, %Y')}</strong>
+  &nbsp;·&nbsp; {weight_unit} &nbsp;·&nbsp; USDA NASS QuickStats
 </p>
 """, unsafe_allow_html=True)
 st.divider()
 
 
-# ── KPI row ───────────────────────────────────────────────────────────────────
+# ── Weekly Snapshot cards ──────────────────────────────────────────────────────
 
-kpi_classes = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS"]
-kpi_cols = st.columns(len(kpi_classes))
-for col, cls in zip(kpi_cols, kpi_classes):
-    sub = wt_df[wt_df["class_desc"] == cls]
-    if sub.empty:
-        with col:
-            st.markdown(_metric_card(cls, "N/A", ""), unsafe_allow_html=True)
-        continue
-    kpi = compute_kpis(wt_df, cls)
-    value_str = f"{kpi['current']:,.0f} lb" if pd.notna(kpi["current"]) else "N/A"
-    label = f"{cls.title()} ({weight_unit[:7]})"
-    with col:
-        wow_html  = _delta_html(kpi["wow"])
-        avg5_str  = f'<div class="metric-delta-neu">5yr avg: {kpi["avg5"]:,.0f} lb</div>' if pd.notna(kpi["avg5"]) else ""
-        st.markdown(_metric_card(label, value_str, wow_html + avg5_str), unsafe_allow_html=True)
+cols = st.columns(len(snap_classes))
+for col, cls in zip(cols, snap_classes):
+    kpi = week_kpis(wt, cls)
+    col.markdown(_snap_card(cls, kpi, unit_label), unsafe_allow_html=True)
+
+st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
 
-# ── Tabs ──────────────────────────────────────────────────────────────────────
+# ── Summary comparison table ───────────────────────────────────────────────────
 
-tab_wt, tab_vol, tab_yoy, tab_data = st.tabs([
-    "📈 Weight Trends", "🔢 Slaughter Volume", "📊 Year-over-Year", "📋 Data Table"
+def _fmt_delta(val: float, pct: float, suffix: str = " lb") -> str:
+    if pd.isna(val):
+        return "—"
+    sign = "+" if val >= 0 else ""
+    css  = "pos" if val >= 0 else "neg"
+    p    = f" ({sign}{pct:.1f}%)" if not pd.isna(pct) else ""
+    return f'<span class="{css}">{sign}{val:.1f}{suffix}{p}</span>'
+
+
+def _build_summary(classes: list) -> str:
+    rows = ""
+    for cls in classes:
+        kpi = week_kpis(wt, cls)
+        cur = f'{kpi["current"]:,.1f}' if not pd.isna(kpi["current"]) else "—"
+        t4  = f'{kpi["t4w"]:,.1f}' if not pd.isna(kpi["t4w"]) else "—"
+        rows += f"""<tr>
+          <td>{cls.title()}</td>
+          <td>{cur} lb</td>
+          <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'])}</td>
+          <td>{t4} lb</td>
+          <td>{_fmt_delta(kpi['yoy'], kpi['yoy_pct'])}</td>
+          <td>{_fmt_delta(kpi['vs_olympic'], kpi['vs_olympic_pct'])}</td>
+        </tr>"""
+    return f"""
+    <table class="sum-table">
+      <thead><tr>
+        <th>Class</th>
+        <th>This Week</th>
+        <th>WoW Change</th>
+        <th>4-Wk Avg</th>
+        <th>vs Last Year</th>
+        <th>vs Olympic Avg</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+
+
+st.markdown(f'<div class="sec-hdr">Weekly Summary — All Classes</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-radius:8px;padding:12px 16px">'
+    + _build_summary(CLASS_ORDER)
+    + "</div>",
+    unsafe_allow_html=True,
+)
+
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+
+# ── Tabs ───────────────────────────────────────────────────────────────────────
+
+tab_trend, tab_yoy, tab_vol, tab_data = st.tabs([
+    "📈 Weekly Trend", "📊 Year-over-Year", "🔢 Slaughter Volume", "📋 Data"
 ])
 
 
-# ── Tab 1 — Weight Trends ─────────────────────────────────────────────────────
+# ── Tab 1 — Weekly Trend ───────────────────────────────────────────────────────
 
-with tab_wt:
-    if wt_df.empty:
-        st.warning(f"No {weight_unit.lower()} data found for the selected years/classes.")
+with tab_trend:
+    cls = trend_class
+    sub = wt[wt["class_desc"] == cls].sort_values("week_ending")
+
+    if sub.empty:
+        st.warning("No data for selected class.")
     else:
+        # Slice to trend window for current + prior year
+        cutoff = sub["week_ending"].max() - pd.Timedelta(weeks=trend_weeks)
+        curr_yr_full = sub[sub["year"] == latest_year]
+        curr_yr = curr_yr_full[curr_yr_full["week_ending"] > cutoff]
+        prev_yr = sub[
+            (sub["year"] == latest_year - 1) &
+            (sub["iso_week"].isin(curr_yr["iso_week"]))
+        ]
+
+        # Olympic avg for weeks in window
+        olym_map = olympic_series(sub, latest_year)
+        olym_weeks = curr_yr["iso_week"].values
+        olym_x = curr_yr["week_ending"].values
+        olym_y = [olym_map.get(w, float("nan")) for w in olym_weeks]
+
+        # 4-week rolling avg for current year (full series → slice)
+        sub_roll = sub.copy()
+        sub_roll["t4w"] = sub_roll["Value"].rolling(4, min_periods=1).mean()
+        curr_roll = sub_roll[
+            (sub_roll["year"] == latest_year) &
+            (sub_roll["week_ending"] > cutoff)
+        ]
+
         fig = go.Figure()
-        for cls in selected_classes:
-            cls_data = wt_df[wt_df["class_desc"] == cls].sort_values("week_ending")
-            if cls_data.empty:
-                continue
+
+        # Olympic avg band (high/low of the 5 prior years per week)
+        olym_highs, olym_lows = [], []
+        for w, x in zip(olym_weeks, olym_x):
+            yr_vals = [_nearest_week(sub, latest_year - i, w) for i in range(1, 6)]
+            yr_vals = [v for v in yr_vals if not pd.isna(v)]
+            olym_highs.append(max(yr_vals) if yr_vals else float("nan"))
+            olym_lows.append(min(yr_vals) if yr_vals else float("nan"))
+
+        fig.add_trace(go.Scatter(
+            x=list(olym_x) + list(olym_x)[::-1],
+            y=olym_highs + olym_lows[::-1],
+            fill="toself", fillcolor="rgba(122,153,144,0.12)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="5yr Range", hoverinfo="skip", showlegend=True,
+        ))
+
+        # Olympic avg line
+        fig.add_trace(go.Scatter(
+            x=olym_x, y=olym_y,
+            name="Olympic Avg (5yr)",
+            mode="lines",
+            line=dict(color="rgba(122,153,144,0.7)", width=1.8, dash="dash"),
+            hovertemplate="Olympic avg: %{y:,.1f} lb<extra></extra>",
+        ))
+
+        # Prior year
+        if not prev_yr.empty:
             fig.add_trace(go.Scatter(
-                x=cls_data["week_ending"],
-                y=cls_data["Value"],
-                name=cls.title(),
+                x=prev_yr["week_ending"], y=prev_yr["Value"],
+                name=str(latest_year - 1),
                 mode="lines",
-                line=dict(color=CLASS_COLORS.get(cls, DM_MUTED), width=2),
-                hovertemplate="%{y:,.0f} lb<extra>%{fullData.name}</extra>",
+                line=dict(color="rgba(224,232,240,0.4)", width=1.5, dash="dot"),
+                hovertemplate=f"{latest_year-1}: %{{y:,.1f}} lb<extra></extra>",
             ))
-        _apply_chart(fig, f"Weekly Avg {weight_unit} — Federally Inspected Commercial", 420, "lb / head")
+
+        # Current year
+        fig.add_trace(go.Scatter(
+            x=curr_yr["week_ending"], y=curr_yr["Value"],
+            name=str(latest_year),
+            mode="lines+markers",
+            line=dict(color=JPSI_GREEN, width=2.5),
+            marker=dict(size=5, color=JPSI_GREEN),
+            hovertemplate=f"{latest_year}: %{{y:,.1f}} lb<extra></extra>",
+        ))
+
+        # 4-week rolling avg
+        fig.add_trace(go.Scatter(
+            x=curr_roll["week_ending"], y=curr_roll["t4w"],
+            name="4-Wk Rolling Avg",
+            mode="lines",
+            line=dict(color="#fbbf24", width=2, dash="dashdot"),
+            hovertemplate="4-wk avg: %{y:,.1f} lb<extra></extra>",
+        ))
+
+        _apply(fig, f"{cls.title()} — {weight_unit} · Last {trend_weeks} Weeks", 440, "lb / head")
         st.plotly_chart(fig, use_container_width=True)
 
-        # Rolling 4-week avg overlay
-        st.markdown(f'<div class="section-header">4-Week Rolling Average</div>', unsafe_allow_html=True)
-        fig2 = go.Figure()
-        for cls in selected_classes:
-            cls_data = wt_df[wt_df["class_desc"] == cls].sort_values("week_ending").copy()
-            if cls_data.empty:
-                continue
-            cls_data["rolling4"] = cls_data["Value"].rolling(4).mean()
-            fig2.add_trace(go.Scatter(
-                x=cls_data["week_ending"],
-                y=cls_data["rolling4"],
-                name=cls.title(),
-                mode="lines",
-                line=dict(color=CLASS_COLORS.get(cls, DM_MUTED), width=2.5),
-                hovertemplate="%{y:,.0f} lb<extra>%{fullData.name} (4wk avg)</extra>",
-            ))
-        _apply_chart(fig2, "4-Week Rolling Average", 360, "lb / head")
+        # WoW delta bars
+        recent = sub[sub["week_ending"] > cutoff].copy()
+        recent["wow_delta"] = recent["Value"].diff()
+        recent = recent.dropna(subset=["wow_delta"])
+
+        fig2 = go.Figure(go.Bar(
+            x=recent["week_ending"],
+            y=recent["wow_delta"],
+            marker_color=[COL_POS if v >= 0 else COL_NEG for v in recent["wow_delta"]],
+            hovertemplate="WoW: %{y:+.1f} lb<extra></extra>",
+        ))
+        fig2.add_hline(y=0, line_color=DM_BORDER)
+        _apply(fig2, "Week-over-Week Change", 240, "\u0394 lb / head")
         st.plotly_chart(fig2, use_container_width=True)
 
 
-# ── Tab 2 — Slaughter Volume ──────────────────────────────────────────────────
+# ── Tab 2 — Year-over-Year ─────────────────────────────────────────────────────
+
+with tab_yoy:
+    yoy_cls = st.selectbox(
+        "Class",
+        [c for c in CLASS_ORDER if not wt[wt["class_desc"] == c].empty],
+        key="yoy_cls",
+    )
+    n_years = st.slider("Years to compare", 3, 10, 6, key="yoy_n")
+
+    yoy_sub = wt[wt["class_desc"] == yoy_cls].copy()
+    if yoy_sub.empty:
+        st.warning("No data.")
+    else:
+        yoy_sub["day_of_year"] = yoy_sub["week_ending"].dt.dayofyear
+        ly_max  = yoy_sub["year"].max()
+        yr_list = [y for y in range(ly_max - n_years + 1, ly_max + 1)
+                   if y in yoy_sub["year"].unique()]
+
+        month_ticks  = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+        month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+        # ── Multi-year overlay ────────────────────────────────────────────────
+        fig3 = go.Figure()
+
+        # Olympic avg band
+        olym_all = olympic_series(yoy_sub, ly_max, n=5)
+        all_doys = sorted(yoy_sub["day_of_year"].unique())
+        doy_to_iso = yoy_sub.groupby("day_of_year")["iso_week"].first().to_dict()
+        olym_y_all = [olym_all.get(doy_to_iso.get(d, 0), float("nan")) for d in all_doys]
+
+        # Range band
+        olym_high_all, olym_low_all = [], []
+        for d in all_doys:
+            iw = doy_to_iso.get(d, 0)
+            yr_vals = [_nearest_week(yoy_sub, ly_max - i, iw) for i in range(1, 6)]
+            yr_vals = [v for v in yr_vals if not pd.isna(v)]
+            olym_high_all.append(max(yr_vals) if yr_vals else float("nan"))
+            olym_low_all.append(min(yr_vals) if yr_vals else float("nan"))
+
+        fig3.add_trace(go.Scatter(
+            x=all_doys + all_doys[::-1],
+            y=olym_high_all + olym_low_all[::-1],
+            fill="toself", fillcolor="rgba(122,153,144,0.10)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="5yr Range", hoverinfo="skip",
+        ))
+        fig3.add_trace(go.Scatter(
+            x=all_doys, y=olym_y_all,
+            name="Olympic Avg",
+            mode="lines",
+            line=dict(color="rgba(122,153,144,0.7)", width=1.8, dash="dash"),
+            hovertemplate="Olympic avg: %{y:,.1f} lb<extra></extra>",
+        ))
+
+        for yr in yr_list:
+            yd = yoy_sub[yoy_sub["year"] == yr].sort_values("day_of_year")
+            is_cur = yr == ly_max
+            fig3.add_trace(go.Scatter(
+                x=yd["day_of_year"], y=yd["Value"],
+                name=str(yr), mode="lines",
+                line=dict(
+                    color=JPSI_GREEN if is_cur else CLASS_COLORS.get(yoy_cls, DM_MUTED),
+                    width=2.5 if is_cur else 1.2,
+                    dash="solid" if is_cur else "dot",
+                ),
+                opacity=1.0 if is_cur else 0.5,
+                hovertemplate=f"{yr}: %{{y:,.1f}} lb<extra></extra>",
+            ))
+
+        _apply(fig3, f"{yoy_cls.title()} — Year-over-Year Overlay", 460, "lb / head")
+        fig3.update_xaxes(tickmode="array", tickvals=month_ticks, ticktext=month_labels)
+        st.plotly_chart(fig3, use_container_width=True)
+
+        # ── Same-week YoY comparison bar chart ───────────────────────────────
+        st.markdown('<div class="sec-hdr">Same Week — Value by Year</div>', unsafe_allow_html=True)
+        wk_vals = []
+        for yr in range(ly_max - n_years + 1, ly_max + 1):
+            v = _nearest_week(yoy_sub, yr, latest_iso)
+            olym = olympic_avg(yoy_sub, yr, latest_iso)
+            wk_vals.append({"Year": yr, "Value": v, "Olympic": olym})
+        wk_df = pd.DataFrame(wk_vals).dropna(subset=["Value"])
+
+        fig4 = go.Figure()
+        fig4.add_trace(go.Bar(
+            x=wk_df["Year"], y=wk_df["Value"],
+            name="Actual",
+            marker_color=[JPSI_GREEN if yr == ly_max else "rgba(74,222,128,0.45)"
+                          for yr in wk_df["Year"]],
+            hovertemplate="%{x}: %{y:,.1f} lb<extra></extra>",
+        ))
+        fig4.add_trace(go.Scatter(
+            x=wk_df["Year"], y=wk_df["Olympic"],
+            name="Olympic Avg",
+            mode="lines+markers",
+            line=dict(color=DM_MUTED, dash="dash", width=1.5),
+            hovertemplate="Olympic avg: %{y:,.1f} lb<extra></extra>",
+        ))
+        _apply(fig4, f"ISO Week {latest_iso} — Historical Comparison", 300, "lb / head")
+        fig4.update_xaxes(tickmode="linear", dtick=1)
+        st.plotly_chart(fig4, use_container_width=True)
+
+        # ── YoY delta vs Olympic avg ──────────────────────────────────────────
+        st.markdown('<div class="sec-hdr">Current Year vs Olympic Avg — Weekly Delta</div>', unsafe_allow_html=True)
+        curr_full = yoy_sub[yoy_sub["year"] == ly_max].sort_values("iso_week")
+        olym_curr = [olympic_avg(yoy_sub, ly_max, w) for w in curr_full["iso_week"]]
+        curr_full = curr_full.copy()
+        curr_full["vs_olympic"] = curr_full["Value"].values - pd.array(olym_curr)
+
+        fig5 = go.Figure(go.Bar(
+            x=curr_full["week_ending"],
+            y=curr_full["vs_olympic"],
+            marker_color=[COL_POS if v >= 0 else COL_NEG for v in curr_full["vs_olympic"]],
+            hovertemplate="%{x|%b %d}: %{y:+.1f} lb vs Olympic avg<extra></extra>",
+        ))
+        fig5.add_hline(y=0, line_color=DM_BORDER)
+        _apply(fig5, f"{ly_max} vs Olympic Avg — Weekly \u0394", 260, "\u0394 lb / head")
+        st.plotly_chart(fig5, use_container_width=True)
+
+
+# ── Tab 3 — Slaughter Volume ───────────────────────────────────────────────────
 
 with tab_vol:
-    if vol_df_raw.empty:
-        st.warning("No slaughter volume data found.")
+    if vol.empty:
+        st.warning("No slaughter volume data.")
     else:
-        vol_classes = st.multiselect(
-            "Classes to display",
-            CLASSES_VOLUME,
+        vol_cls = st.multiselect(
+            "Classes",
+            CLASS_ORDER,
             default=["GE 500 LBS", "STEERS", "HEIFERS"],
-            key="vol_classes",
+            key="vol_cls",
         )
-        if not vol_classes:
-            vol_classes = ["GE 500 LBS"]
+        if not vol_cls:
+            vol_cls = ["GE 500 LBS"]
 
-        fig3 = go.Figure()
-        for cls in vol_classes:
-            cls_data = vol_df_raw[vol_df_raw["class_desc"] == cls].sort_values("week_ending")
-            if cls_data.empty:
+        vol_cutoff = vol["week_ending"].max() - pd.Timedelta(weeks=trend_weeks)
+
+        fig6 = go.Figure()
+        for cls in vol_cls:
+            cd = vol[(vol["class_desc"] == cls) & (vol["week_ending"] > vol_cutoff)].sort_values("week_ending")
+            if cd.empty:
                 continue
-            fig3.add_trace(go.Scatter(
-                x=cls_data["week_ending"],
-                y=cls_data["Value"],
-                name=cls.title(),
-                mode="lines",
+            fig6.add_trace(go.Scatter(
+                x=cd["week_ending"], y=cd["Value"],
+                name=cls.title(), mode="lines",
                 line=dict(color=CLASS_COLORS.get(cls, DM_MUTED), width=2),
                 hovertemplate="%{y:,.0f} head<extra>%{fullData.name}</extra>",
             ))
-        _apply_chart(fig3, "Weekly Federally Inspected Commercial Slaughter — Head Count", 420, "Head")
-        st.plotly_chart(fig3, use_container_width=True)
+        _apply(fig6, f"Weekly Slaughter — Head Count · Last {trend_weeks} Weeks", 420, "Head")
+        st.plotly_chart(fig6, use_container_width=True)
 
-        # Latest week volume breakdown
-        latest_vol_date = vol_df_raw["week_ending"].max()
-        latest_vol = vol_df_raw[
-            (vol_df_raw["week_ending"] == latest_vol_date) &
-            (vol_df_raw["class_desc"].isin(["STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]))
-        ].copy()
-        if not latest_vol.empty:
-            st.markdown(f'<div class="section-header">Week of {latest_vol_date.strftime("%B %d, %Y")} — Class Breakdown</div>', unsafe_allow_html=True)
-            fig4 = go.Figure(go.Pie(
-                labels=latest_vol["class_desc"].str.title(),
-                values=latest_vol["Value"],
-                marker_colors=[CLASS_COLORS.get(c, DM_MUTED) for c in latest_vol["class_desc"]],
-                hole=0.45,
-                textinfo="label+percent",
-                hovertemplate="%{label}: %{value:,.0f} head (%{percent})<extra></extra>",
+        # Latest week pie
+        latest_vol_date = vol["week_ending"].max()
+        pie_data = vol[
+            (vol["week_ending"] == latest_vol_date) &
+            (vol["class_desc"].isin(["STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]))
+        ]
+        if not pie_data.empty:
+            st.markdown(f'<div class="sec-hdr">Week of {latest_vol_date.strftime("%B %d, %Y")} — Class Mix</div>',
+                        unsafe_allow_html=True)
+            fig7 = go.Figure(go.Pie(
+                labels=pie_data["class_desc"].str.title(),
+                values=pie_data["Value"],
+                marker_colors=[CLASS_COLORS.get(c, DM_MUTED) for c in pie_data["class_desc"]],
+                hole=0.45, textinfo="label+percent",
+                hovertemplate="%{label}: %{value:,.0f} head<extra></extra>",
             ))
-            fig4.update_layout(
-                paper_bgcolor=DM_SURFACE2,
-                plot_bgcolor=DM_SURFACE2,
-                font=dict(color=DM_TEXT),
-                showlegend=False,
-                height=320,
-                margin=dict(l=20, r=20, t=20, b=20),
+            fig7.update_layout(
+                paper_bgcolor=DM_SURFACE2, plot_bgcolor=DM_SURFACE2,
+                font=dict(color=DM_TEXT), showlegend=False,
+                height=300, margin=dict(l=20, r=20, t=10, b=10),
             )
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig7, use_container_width=True)
 
 
-# ── Tab 3 — Year-over-Year Overlay ────────────────────────────────────────────
-
-with tab_yoy:
-    yoy_class = st.selectbox(
-        "Class",
-        [c for c in CLASSES_WEIGHT if not wt_df[wt_df["class_desc"] == c].empty],
-        index=0,
-        key="yoy_class",
-    )
-
-    yoy_data = wt_df[wt_df["class_desc"] == yoy_class].copy()
-    if yoy_data.empty:
-        st.warning("No data for selected class.")
-    else:
-        yoy_data["day_of_year"] = yoy_data["week_ending"].dt.dayofyear
-        yoy_data["month_day"]   = yoy_data["week_ending"].dt.strftime("%-m/%-d")
-
-        latest_yr  = yoy_data["year"].max()
-        overlay_yr = list(range(latest_yr - overlay_years_back, latest_yr + 1))
-        overlay_yr = [y for y in overlay_yr if y in yoy_data["year"].unique()]
-
-        fig5 = go.Figure()
-        for yr in overlay_yr:
-            yr_data = yoy_data[yoy_data["year"] == yr].sort_values("day_of_year")
-            if yr_data.empty:
-                continue
-            is_current = yr == latest_yr
-            fig5.add_trace(go.Scatter(
-                x=yr_data["day_of_year"],
-                y=yr_data["Value"],
-                name=str(yr),
-                mode="lines",
-                line=dict(
-                    color=JPSI_GREEN if is_current else None,
-                    width=2.5 if is_current else 1.2,
-                    dash="solid" if is_current else "dot",
-                ),
-                opacity=1.0 if is_current else 0.55,
-                hovertemplate=f"{yr}: %{{y:,.0f}} lb<extra></extra>",
-            ))
-
-        # 5yr avg band
-        avg5_data = yoy_data[yoy_data["year"].isin(range(latest_yr - 5, latest_yr))]
-        if not avg5_data.empty:
-            avg_by_doy = avg5_data.groupby("day_of_year")["Value"].agg(["mean", "std"]).reset_index()
-            fig5.add_trace(go.Scatter(
-                x=pd.concat([avg_by_doy["day_of_year"], avg_by_doy["day_of_year"][::-1]]),
-                y=pd.concat([avg_by_doy["mean"] + avg_by_doy["std"],
-                             (avg_by_doy["mean"] - avg_by_doy["std"])[::-1]]),
-                fill="toself",
-                fillcolor=f"rgba(74,222,128,0.08)",
-                line=dict(color="rgba(0,0,0,0)"),
-                name="±1 Std Dev (5yr)",
-                showlegend=True,
-                hoverinfo="skip",
-            ))
-            fig5.add_trace(go.Scatter(
-                x=avg_by_doy["day_of_year"],
-                y=avg_by_doy["mean"],
-                name="5yr Avg",
-                mode="lines",
-                line=dict(color=f"rgba(74,222,128,0.5)", width=1.5, dash="dash"),
-                hovertemplate="5yr avg: %{y:,.0f} lb<extra></extra>",
-            ))
-
-        month_ticks = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
-        month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-        _apply_chart(fig5, f"Year-over-Year — {yoy_class.title()} {weight_unit}", 460, "lb / head")
-        fig5.update_xaxes(tickmode="array", tickvals=month_ticks, ticktext=month_labels)
-        st.plotly_chart(fig5, use_container_width=True)
-
-        # YoY delta chart
-        if latest_yr - 1 in yoy_data["year"].unique():
-            curr_yr_data = yoy_data[yoy_data["year"] == latest_yr].set_index("day_of_year")["Value"]
-            prev_yr_data = yoy_data[yoy_data["year"] == latest_yr - 1].set_index("day_of_year")["Value"]
-            delta        = (curr_yr_data - prev_yr_data).dropna().reset_index()
-            delta.columns = ["day_of_year", "delta"]
-
-            fig6 = go.Figure(go.Bar(
-                x=delta["day_of_year"],
-                y=delta["delta"],
-                marker_color=[JPSI_GREEN if v >= 0 else "#f87171" for v in delta["delta"]],
-                hovertemplate="%{y:+.1f} lb vs prior year<extra></extra>",
-            ))
-            fig6.add_hline(y=0, line_color=DM_BORDER)
-            _apply_chart(fig6, f"{latest_yr} vs {latest_yr-1} — Weekly \u0394 lb/head", 280, "\u0394 lb / head")
-            fig6.update_xaxes(tickmode="array", tickvals=month_ticks, ticktext=month_labels)
-            st.plotly_chart(fig6, use_container_width=True)
-
-
-# ── Tab 4 — Data Table ────────────────────────────────────────────────────────
+# ── Tab 4 — Data ───────────────────────────────────────────────────────────────
 
 with tab_data:
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        tbl_classes = st.multiselect(
-            "Filter by class",
-            CLASSES_WEIGHT,
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        tbl_cls = st.multiselect(
+            "Classes", CLASS_ORDER,
             default=["GE 500 LBS", "STEERS", "HEIFERS"],
-            key="tbl_classes",
+            key="tbl_cls",
         )
-    with col_b:
+    with c2:
         tbl_unit = st.selectbox(
             "Unit",
             ["LB / HEAD, DRESSED BASIS", "LB / HEAD, LIVE BASIS", "HEAD"],
             key="tbl_unit",
         )
 
-    tbl_df = raw[
-        (raw["class_desc"].isin(tbl_classes if tbl_classes else CLASSES_WEIGHT)) &
+    tbl = raw[
+        (raw["class_desc"].isin(tbl_cls or CLASS_ORDER)) &
         (raw["unit_desc"] == tbl_unit)
     ][["year", "week_ending", "class_desc", "unit_desc", "Value"]].copy()
-
-    tbl_df = tbl_df.sort_values(["week_ending", "class_desc"], ascending=[False, True])
-    tbl_df.columns = ["Year", "Week Ending", "Class", "Unit", "Value"]
+    tbl = tbl.sort_values(["week_ending", "class_desc"], ascending=[False, True])
+    tbl.columns = ["Year", "Week Ending", "Class", "Unit", "Value"]
 
     st.dataframe(
-        tbl_df,
-        use_container_width=True,
-        height=420,
+        tbl, use_container_width=True, height=440,
         column_config={
-            "Value": st.column_config.NumberColumn(format="%.0f"),
+            "Value": st.column_config.NumberColumn(format="%.1f"),
             "Week Ending": st.column_config.DateColumn(format="MM/DD/YYYY"),
         },
     )
+    st.download_button(
+        "⬇ Download Excel",
+        data=_to_excel(tbl),
+        file_name=f"beef_weight_{current_year}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
-    dl_col1, dl_col2 = st.columns([1, 4])
-    with dl_col1:
-        st.download_button(
-            "⬇ Download Excel",
-            data=_to_excel(tbl_df),
-            file_name=f"beef_weight_{year_range[0]}_{year_range[1]}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
 
-# ── Footer ────────────────────────────────────────────────────────────────────
+# ── Footer ──────────────────────────────────────────────────────────────────────
 
 st.divider()
 st.markdown(
-    f'<p style="color:{DM_MUTED}; font-size:0.72rem; text-align:center">'
-    f'Data: USDA NASS QuickStats · Federally Inspected Commercial Slaughter · '
-    f'Refreshed hourly &nbsp;|&nbsp; '
-    f'John Stewart &amp; Associates</p>',
+    f'<p style="color:{DM_MUTED};font-size:.72rem;text-align:center">'
+    f'USDA NASS QuickStats · Federally Inspected Commercial Slaughter · '
+    f'Cached 1 hr &nbsp;|&nbsp; John Stewart &amp; Associates</p>',
     unsafe_allow_html=True,
 )
