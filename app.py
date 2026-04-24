@@ -657,71 +657,68 @@ with tab_trend:
     if sub.empty:
         st.warning("No data for selected class.")
     else:
-        # Slice to trend window for current + prior year
-        cutoff = sub["week_ending"].max() - pd.Timedelta(weeks=trend_weeks)
-        curr_yr_full = sub[sub["year"] == latest_year]
-        curr_yr = curr_yr_full[curr_yr_full["week_ending"] > cutoff]
-        prev_yr = sub[
-            (sub["year"] == latest_year - 1) &
-            (sub["iso_week"].isin(curr_yr["iso_week"]))
-        ]
+        # Build current year window — all weeks available for latest_year
+        curr_yr = sub[sub["year"] == latest_year].sort_values("week_ending")
+        # Apply trend window cutoff
+        cutoff = curr_yr["week_ending"].max() - pd.Timedelta(weeks=trend_weeks)
+        curr_yr = curr_yr[curr_yr["week_ending"] > cutoff]
 
-        # Olympic avg for weeks in window
+        # Build an ISO-week → current-year date lookup for aligning all series to same X axis
+        iso_to_date = curr_yr.set_index("iso_week")["week_ending"].to_dict()
+        x_dates = curr_yr["week_ending"].values
+        iso_weeks = curr_yr["iso_week"].values
+
+        # Prior year — map onto current year dates by ISO week
+        prev_lookup = sub[sub["year"] == latest_year - 1].set_index("iso_week")["Value"].to_dict()
+        prev_y = [prev_lookup.get(w, float("nan")) for w in iso_weeks]
+
+        # 5yr avg and range — mapped to current year dates
         olym_map = olympic_series(sub, latest_year)
-        olym_weeks = curr_yr["iso_week"].values
-        olym_x = curr_yr["week_ending"].values
-        olym_y = [olym_map.get(w, float("nan")) for w in olym_weeks]
-
-        # 4-week rolling avg for current year (full series → slice)
-        sub_roll = sub.copy()
-        sub_roll["t4w"] = sub_roll["Value"].rolling(4, min_periods=1).mean()
-        curr_roll = sub_roll[
-            (sub_roll["year"] == latest_year) &
-            (sub_roll["week_ending"] > cutoff)
-        ]
-
-        fig = go.Figure()
-
-        # Olympic avg band (high/low of the 5 prior years per week)
+        olym_y    = [olym_map.get(w, float("nan")) for w in iso_weeks]
         olym_highs, olym_lows = [], []
-        for w, x in zip(olym_weeks, olym_x):
+        for w in iso_weeks:
             yr_vals = [_nearest_week(sub, latest_year - i, w) for i in range(1, 6)]
             yr_vals = [v for v in yr_vals if not pd.isna(v)]
             olym_highs.append(max(yr_vals) if yr_vals else float("nan"))
             olym_lows.append(min(yr_vals) if yr_vals else float("nan"))
 
+        # 4-week rolling avg for current year
+        sub_roll = sub[sub["year"] == latest_year].sort_values("week_ending").copy()
+        sub_roll["t4w"] = sub_roll["Value"].rolling(4, min_periods=1).mean()
+        roll_lookup = sub_roll.set_index("iso_week")["t4w"].to_dict()
+        roll_y = [roll_lookup.get(w, float("nan")) for w in iso_weeks]
+
+        fig = go.Figure()
+
+        # 5yr range band
         fig.add_trace(go.Scatter(
-            x=list(olym_x) + list(olym_x)[::-1],
+            x=list(x_dates) + list(x_dates)[::-1],
             y=olym_highs + olym_lows[::-1],
             fill="toself", fillcolor="rgba(122,153,144,0.12)",
             line=dict(color="rgba(0,0,0,0)"),
             name="5yr Range", hoverinfo="skip", showlegend=True,
         ))
 
-        # Olympic avg line
+        # 5yr avg line
         fig.add_trace(go.Scatter(
-            x=olym_x, y=olym_y,
-            name="5yr Avg",
-            mode="lines",
+            x=x_dates, y=olym_y,
+            name="5yr Avg", mode="lines",
             line=dict(color="rgba(122,153,144,0.7)", width=1.8, dash="dash"),
             hovertemplate="5yr avg: %{y:,.1f} lb<extra></extra>",
         ))
 
-        # Prior year
-        if not prev_yr.empty:
-            fig.add_trace(go.Scatter(
-                x=prev_yr["week_ending"], y=prev_yr["Value"],
-                name=str(latest_year - 1),
-                mode="lines",
-                line=dict(color="rgba(224,232,240,0.4)", width=1.5, dash="dot"),
-                hovertemplate=f"{latest_year-1}: %{{y:,.1f}} lb<extra></extra>",
-            ))
+        # Prior year — same X dates as current year
+        fig.add_trace(go.Scatter(
+            x=x_dates, y=prev_y,
+            name=str(latest_year - 1), mode="lines",
+            line=dict(color="rgba(224,232,240,0.5)", width=1.5, dash="dot"),
+            hovertemplate=f"{latest_year-1}: %{{y:,.1f}} lb<extra></extra>",
+        ))
 
         # Current year
         fig.add_trace(go.Scatter(
-            x=curr_yr["week_ending"], y=curr_yr["Value"],
-            name=str(latest_year),
-            mode="lines+markers",
+            x=x_dates, y=curr_yr["Value"].values,
+            name=str(latest_year), mode="lines+markers",
             line=dict(color=JPSI_GREEN, width=2.5),
             marker=dict(size=5, color=JPSI_GREEN),
             hovertemplate=f"{latest_year}: %{{y:,.1f}} lb<extra></extra>",
@@ -729,9 +726,8 @@ with tab_trend:
 
         # 4-week rolling avg
         fig.add_trace(go.Scatter(
-            x=curr_roll["week_ending"], y=curr_roll["t4w"],
-            name="4-Wk Rolling Avg",
-            mode="lines",
+            x=x_dates, y=roll_y,
+            name="4-Wk Rolling Avg", mode="lines",
             line=dict(color="#fbbf24", width=2, dash="dashdot"),
             hovertemplate="4-wk avg: %{y:,.1f} lb<extra></extra>",
         ))
