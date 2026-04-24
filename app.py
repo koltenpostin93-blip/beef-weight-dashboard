@@ -388,8 +388,7 @@ latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
 # ── Next Friday calculation ────────────────────────────────────────────────────
 _today      = datetime.now().date()
-_days_ahead = (4 - _today.weekday()) % 7   # 4 = Friday
-_days_ahead = 7 if _days_ahead == 0 else _days_ahead  # if today is Friday, next Friday
+_days_ahead = (4 - _today.weekday()) % 7   # 4 = Friday; 0 means today IS Friday
 _next_friday = _today + __import__("datetime").timedelta(days=_days_ahead)
 
 # ── Sidebar data info panel ────────────────────────────────────────────────────
@@ -401,7 +400,7 @@ st.sidebar.markdown(f"""
     letter-spacing:.08em;margin-bottom:8px">Data Status</div>
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-    <span style="color:{DM_MUTED}">Data as of</span>
+    <span style="color:{DM_MUTED}">Report date</span>
     <span style="color:{DM_TEXT};font-weight:600">{latest_date.strftime('%b %d, %Y')}</span>
   </div>
 
@@ -414,7 +413,9 @@ st.sidebar.markdown(f"""
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
     <span style="color:{DM_MUTED}">Next update</span>
-    <span style="color:{DM_TEXT};font-weight:600">{_next_friday.strftime('%b %d, %Y')}</span>
+    <span style="color:{'#8db89a' if _next_friday == _today else DM_TEXT};font-weight:600">
+      {"Today" if _next_friday == _today else _next_friday.strftime('%b %d, %Y')}
+    </span>
   </div>
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
