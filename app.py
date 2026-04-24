@@ -142,6 +142,23 @@ def _nass_get(params: dict) -> dict:
     return {}
 
 
+def _build_df(frames: list) -> pd.DataFrame:
+    if not frames:
+        return pd.DataFrame()
+    df = pd.concat(frames, ignore_index=True)
+    keep = ["year", "week_ending", "class_desc", "unit_desc", "Value"]
+    df = df[[c for c in keep if c in df.columns]].copy()
+    df["Value"]       = pd.to_numeric(
+        df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce"
+    )
+    df["week_ending"] = pd.to_datetime(df["week_ending"], errors="coerce")
+    df["year"]        = df["year"].astype(int)
+    df["class_desc"]  = df["class_desc"].str.upper().str.strip()
+    df["unit_desc"]   = df["unit_desc"].str.strip()
+    df["iso_week"]    = df["week_ending"].dt.isocalendar().week.astype(int)
+    return df.dropna(subset=["Value", "week_ending"])
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_data(years: tuple) -> pd.DataFrame:
     frames = []
@@ -161,21 +178,31 @@ def fetch_data(years: tuple) -> pd.DataFrame:
         payload = _nass_get(params)
         if "data" in payload and payload["data"]:
             frames.append(pd.DataFrame(payload["data"]))
-    if not frames:
-        return pd.DataFrame()
+    return _build_df(frames)
 
-    df = pd.concat(frames, ignore_index=True)
-    keep = ["year", "week_ending", "class_desc", "unit_desc", "Value"]
-    df = df[[c for c in keep if c in df.columns]].copy()
-    df["Value"]       = pd.to_numeric(
-        df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce"
-    )
-    df["week_ending"] = pd.to_datetime(df["week_ending"], errors="coerce")
-    df["year"]        = df["year"].astype(int)
-    df["class_desc"]  = df["class_desc"].str.upper().str.strip()
-    df["unit_desc"]   = df["unit_desc"].str.strip()
-    df["iso_week"]    = df["week_ending"].dt.isocalendar().week.astype(int)
-    return df.dropna(subset=["Value", "week_ending"])
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_vol_data(years: tuple) -> pd.DataFrame:
+    """Separate fetch for head-count slaughter data — may update ahead of weight data."""
+    frames = []
+    for year in years:
+        params = {
+            "key":               API_KEY,
+            "source_desc":       "SURVEY",
+            "sector_desc":       "ANIMALS & PRODUCTS",
+            "group_desc":        "LIVESTOCK",
+            "commodity_desc":    "CATTLE",
+            "statisticcat_desc": "SLAUGHTERED",
+            "unit_desc":         "HEAD",
+            "freq_desc":         "WEEKLY",
+            "state_alpha":       "US",
+            "year":              year,
+            "format":            "JSON",
+        }
+        payload = _nass_get(params)
+        if "data" in payload and payload["data"]:
+            frames.append(pd.DataFrame(payload["data"]))
+    return _build_df(frames)
 
 
 # ── Analytics helpers ──────────────────────────────────────────────────────────
@@ -385,14 +412,16 @@ trend_class = st.sidebar.selectbox("Trend class", CLASS_ORDER, format_func=_fmt_
 # ── Load data ──────────────────────────────────────────────────────────────────
 
 with st.spinner("Loading USDA NASS data…"):
-    raw = fetch_data(LOAD_YEARS)
+    raw     = fetch_data(LOAD_YEARS)
+    raw_vol = fetch_vol_data(LOAD_YEARS)
 
 if raw.empty:
     st.error("No data returned from USDA NASS. Check your API key in st.secrets.")
     st.stop()
 
 wt  = raw[raw["unit_desc"].str.contains(unit_filter, case=False, na=False)].copy()
-vol = raw[raw["unit_desc"].str.upper() == "HEAD"].copy()
+# Use dedicated volume fetch; fall back to weight dataset if empty
+vol = raw_vol if not raw_vol.empty else raw[raw["unit_desc"].str.upper() == "HEAD"].copy()
 wt  = trailing_4wk(wt)
 
 latest_date = wt["week_ending"].max()
