@@ -518,6 +518,46 @@ def _build_summary(classes: list) -> str:
     </table>"""
 
 
+def _build_vol_summary(classes: list) -> str:
+    rows = ""
+    for cls in classes:
+        kpi = vol_kpis(vol, cls)
+        cur = f'{kpi["current"]:,.0f}' if not pd.isna(kpi["current"]) else "—"
+        t4  = f'{kpi["t4w"]:,.0f}' if not pd.isna(kpi["t4w"]) else "—"
+        rows += f"""<tr>
+          <td>{cls.title()}</td>
+          <td>{cur} hd</td>
+          <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'], ' hd')}</td>
+          <td>{t4} hd</td>
+          <td>{_fmt_delta(kpi['yoy'], kpi['yoy_pct'], ' hd')}</td>
+          <td>{_fmt_delta(kpi['vs_olympic'], kpi['vs_olympic_pct'], ' hd')}</td>
+        </tr>"""
+    return f"""
+    <table class="sum-table">
+      <thead><tr>
+        <th>Class</th>
+        <th>This Week</th>
+        <th>WoW Change</th>
+        <th>4-Wk Avg</th>
+        <th>vs Last Year</th>
+        <th>vs Olympic Avg</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+
+
+vol_sum_classes = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]
+
+st.markdown(f'<div class="sec-hdr">Volume Summary — All Classes (Head)</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-radius:8px;padding:12px 16px">'
+    + _build_vol_summary(vol_sum_classes)
+    + "</div>",
+    unsafe_allow_html=True,
+)
+
+st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
 st.markdown(f'<div class="sec-hdr">Weight Summary — All Classes</div>', unsafe_allow_html=True)
 st.markdown(
     f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-radius:8px;padding:12px 16px">'
