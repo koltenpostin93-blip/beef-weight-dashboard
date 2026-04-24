@@ -43,6 +43,7 @@ CLASS_DISPLAY = {
     "BULLS":      "Bulls",
     "CALVES":     "Calves",
 }
+VOL_DISPLAY = {**CLASS_DISPLAY, "GE 500 LBS": "All Cattle"}
 
 try:
     API_KEY = st.secrets.get("NASS_API_KEY", "9A6D1EB8-4D94-3221-BA0C-ADD4533EA0C1")
@@ -463,7 +464,7 @@ def _vol_card(cls: str, kpi: dict) -> str:
     color = CLASS_COLORS.get(cls, DM_MUTED)
     return f"""
     <div class="snap-card">
-      <div class="snap-class" style="color:{color}">{CLASS_DISPLAY.get(cls, cls.title())}</div>
+      <div class="snap-class" style="color:{color}">{VOL_DISPLAY.get(cls, cls.title())}</div>
       <div class="snap-value">{val_str} <span style="font-size:0.9rem;color:{DM_MUTED}">head</span></div>
       <div class="snap-grid">
         {_snap_item("WoW", _dc(kpi['wow'], '+.0f', ' hd') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
@@ -533,7 +534,7 @@ def _build_vol_summary(classes: list) -> str:
         cur = f'{kpi["current"]:,.0f}' if not pd.isna(kpi["current"]) else "—"
         t4  = f'{kpi["t4w"]:,.0f}' if not pd.isna(kpi["t4w"]) else "—"
         rows += f"""<tr>
-          <td>{CLASS_DISPLAY.get(cls, cls.title())}</td>
+          <td>{VOL_DISPLAY.get(cls, cls.title())}</td>
           <td>{cur} hd</td>
           <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'], ' hd')}</td>
           <td>{t4} hd</td>
@@ -835,7 +836,7 @@ with tab_vol:
                 continue
             fig6.add_trace(go.Scatter(
                 x=cd["week_ending"], y=cd["Value"],
-                name=cls.title(), mode="lines",
+                name=VOL_DISPLAY.get(cls, cls.title()), mode="lines",
                 line=dict(color=CLASS_COLORS.get(cls, DM_MUTED), width=2),
                 hovertemplate="%{y:,.0f} head<extra>%{fullData.name}</extra>",
             ))
@@ -852,7 +853,7 @@ with tab_vol:
             st.markdown(f'<div class="sec-hdr">Week of {latest_vol_date.strftime("%B %d, %Y")} — Class Mix</div>',
                         unsafe_allow_html=True)
             fig7 = go.Figure(go.Pie(
-                labels=pie_data["class_desc"].str.title(),
+                labels=pie_data["class_desc"].map(lambda c: VOL_DISPLAY.get(c, c.title())),
                 values=pie_data["Value"],
                 marker_colors=[CLASS_COLORS.get(c, DM_MUTED) for c in pie_data["class_desc"]],
                 hole=0.45, textinfo="label+percent",
