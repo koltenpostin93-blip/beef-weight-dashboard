@@ -915,7 +915,7 @@ with tab_trend:
             hovertemplate="4-wk avg: %{y:,.1f} lb<extra></extra>",
         ))
 
-        _wt_vals = list(curr_yr["Value"]) + list(prev_yr["Value"]) + [v for v in olym_y if not pd.isna(v)]
+        _wt_vals = list(curr_yr["Value"]) + [v for v in prev_y if not pd.isna(v)] + [v for v in olym_y if not pd.isna(v)]
         _apply(fig, f"{cls.title()} — {weight_unit} · Last {trend_weeks} Weeks", 440, "lb / head",
                y_range=_tight_range(_wt_vals))
         st.plotly_chart(fig, use_container_width=True)
