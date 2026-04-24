@@ -5,25 +5,34 @@ import requests
 import io
 from datetime import datetime
 
-# ── Theme ──────────────────────────────────────────────────────────────────────
-DM_BG       = "#0e1614"
-DM_SURFACE  = "#162019"
-DM_SURFACE2 = "#1e2e2a"
-DM_BORDER   = "#243328"
-DM_TEXT     = "#e4e8f0"
-DM_MUTED    = "#7a9990"
-JPSI_GREEN  = "#4ade80"
-COL_POS     = "#4ade80"
-COL_NEG     = "#f87171"
-COL_NEU     = "#7a9990"
+# ── JSA Brand Colors ───────────────────────────────────────────────────────────
+# Extracted from jpsi.com logo: sage green #5e7164, charcoal #333132
+JSA_GREEN    = "#5e7164"   # exact logo monogram green
+JSA_GREEN_LT = "#8db89a"   # lightened for dark-bg readability
+JSA_CHARCOAL = "#333132"   # logo text color
+
+DM_BG       = "#0d1210"    # near-black with green tint
+DM_SURFACE  = "#141c18"    # card / sidebar surface
+DM_SURFACE2 = "#1a2620"    # chart background
+DM_BORDER   = "#253328"    # borders — JSA green tint
+DM_TEXT     = "#e8ede9"    # primary text — slight warm white
+DM_MUTED    = "#7a9485"    # muted text — sage
+COL_POS     = "#8db89a"    # positive delta — JSA light green
+COL_NEG     = "#e07070"    # negative delta — muted red
+COL_NEU     = "#7a9485"
+
+JPSI_GREEN  = JSA_GREEN_LT  # alias used throughout
+
+JSA_LOGO_FULL  = "https://www.jpsi.com/wp-content/themes/gate39media/img/logo-full.png"
+JSA_LOGO_WHITE = "https://www.jpsi.com/wp-content/themes/gate39media/img/logo-white.png"
 
 CLASS_COLORS = {
-    "STEERS":     "#4ade80",
-    "HEIFERS":    "#60a5fa",
-    "COWS":       "#f97316",
-    "BULLS":      "#a78bfa",
-    "CALVES":     "#fbbf24",
-    "GE 500 LBS": "#e4e8f0",
+    "STEERS":     "#8db89a",   # JSA light green
+    "HEIFERS":    "#6fa8c4",   # steel blue
+    "COWS":       "#c98a56",   # warm amber
+    "BULLS":      "#9b89c4",   # muted purple
+    "CALVES":     "#c4b456",   # muted gold
+    "GE 500 LBS": "#c8d4ca",   # light sage — headline class
 }
 CLASS_ORDER = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]
 
@@ -35,7 +44,7 @@ except Exception:
 BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 
 st.set_page_config(
-    page_title="Beef Weight Dashboard",
+    page_title="JSA Beef Weight Dashboard",
     page_icon="🐂",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -54,7 +63,8 @@ st.markdown(f"""
   /* ── Snapshot card ── */
   .snap-card {{
     background:{DM_SURFACE}; border:1px solid {DM_BORDER};
-    border-radius:10px; padding:18px 16px 14px; height:100%;
+    border-top:2px solid {JSA_GREEN}; border-radius:10px;
+    padding:18px 16px 14px; height:100%;
   }}
   .snap-class {{
     color:{DM_MUTED}; font-size:0.72rem; text-transform:uppercase;
@@ -304,9 +314,21 @@ def _to_excel(df: pd.DataFrame) -> bytes:
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
-st.sidebar.markdown("### 🐂 Beef Weight Dashboard")
-st.sidebar.markdown(f'<span style="color:{DM_MUTED};font-size:.75rem">USDA NASS · Federally Inspected</span>',
-                    unsafe_allow_html=True)
+st.sidebar.markdown(
+    f'<div style="padding:10px 0 6px">'
+    f'<img src="{JSA_LOGO_WHITE}" style="width:160px;opacity:0.92" /></div>',
+    unsafe_allow_html=True,
+)
+st.sidebar.markdown(
+    f'<div style="background:{JSA_GREEN};border-radius:4px;padding:5px 10px;'
+    f'font-size:.7rem;color:#fff;font-weight:600;letter-spacing:.08em;'
+    f'text-transform:uppercase;margin-bottom:10px">Beef Weight Dashboard</div>',
+    unsafe_allow_html=True,
+)
+st.sidebar.markdown(
+    f'<span style="color:{DM_MUTED};font-size:.72rem">USDA NASS · Federally Inspected</span>',
+    unsafe_allow_html=True,
+)
 st.sidebar.divider()
 
 current_year = datetime.now().year
@@ -353,14 +375,32 @@ latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 
-st.markdown(f"""
-<h1 style="margin-bottom:2px">🐂 Beef Slaughter Weight</h1>
-<p style="color:{DM_MUTED};margin-top:0">
-  Weekly snapshot &nbsp;·&nbsp; Week ending
-  <strong style="color:{DM_TEXT}">{latest_date.strftime('%B %d, %Y')}</strong>
-  &nbsp;·&nbsp; {weight_unit} &nbsp;·&nbsp; USDA NASS QuickStats
-</p>
-""", unsafe_allow_html=True)
+hdr_l, hdr_r = st.columns([3, 1])
+with hdr_l:
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:18px;padding:6px 0 2px">
+      <img src="{JSA_LOGO_FULL}" style="height:48px" />
+      <div>
+        <div style="font-size:1.45rem;font-weight:700;color:{DM_TEXT};line-height:1.1">
+          Beef Slaughter Weight
+        </div>
+        <div style="color:{DM_MUTED};font-size:0.8rem;margin-top:2px">
+          Weekly snapshot &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; Federally Inspected
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+with hdr_r:
+    st.markdown(f"""
+    <div style="text-align:right;padding-top:10px">
+      <div style="color:{DM_MUTED};font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em">Week Ending</div>
+      <div style="color:{DM_TEXT};font-size:1.1rem;font-weight:700">{latest_date.strftime('%B %d, %Y')}</div>
+      <div style="display:inline-block;background:{JSA_GREEN};color:#fff;font-size:.68rem;
+        font-weight:600;padding:2px 8px;border-radius:3px;margin-top:4px;letter-spacing:.06em">
+        {weight_unit.upper()}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 st.divider()
 
 
@@ -420,6 +460,71 @@ st.markdown(
     + "</div>",
     unsafe_allow_html=True,
 )
+
+st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
+
+# ── Slaughter Volume Snapshot ──────────────────────────────────────────────────
+
+def vol_kpis(vol_df: pd.DataFrame, cls: str) -> dict:
+    nan = dict(current=float("nan"), wow=float("nan"), wow_pct=float("nan"),
+               yoy=float("nan"), yoy_pct=float("nan"), t4w=float("nan"),
+               olympic=float("nan"), vs_olympic=float("nan"), vs_olympic_pct=float("nan"))
+    sub = vol_df[vol_df["class_desc"] == cls].sort_values("week_ending")
+    if sub.empty:
+        return nan
+    latest_d  = sub["week_ending"].max()
+    latest_y  = int(sub.loc[sub["week_ending"] == latest_d, "year"].iloc[0])
+    iso_w     = int(sub.loc[sub["week_ending"] == latest_d, "iso_week"].iloc[0])
+    current   = float(sub.loc[sub["week_ending"] == latest_d, "Value"].iloc[0])
+
+    prev_d = sub[sub["week_ending"] < latest_d]
+    if not prev_d.empty:
+        prev_val = float(sub.loc[sub["week_ending"] == prev_d["week_ending"].max(), "Value"].iloc[0])
+        wow = current - prev_val
+        wow_pct = wow / prev_val * 100 if prev_val else float("nan")
+    else:
+        wow = wow_pct = float("nan")
+
+    ly_val = _nearest_week(sub, latest_y - 1, iso_w)
+    yoy = current - ly_val if not pd.isna(ly_val) else float("nan")
+    yoy_pct = yoy / ly_val * 100 if (not pd.isna(ly_val) and ly_val) else float("nan")
+
+    t4w   = float(sub.tail(4)["Value"].mean())
+    olym  = olympic_avg(sub, latest_y, iso_w)
+    vs_ol = current - olym if not pd.isna(olym) else float("nan")
+    vs_ol_pct = vs_ol / olym * 100 if (not pd.isna(olym) and olym) else float("nan")
+    return dict(current=current, wow=wow, wow_pct=wow_pct, yoy=yoy, yoy_pct=yoy_pct,
+                t4w=t4w, olympic=olym, vs_olympic=vs_ol, vs_olympic_pct=vs_ol_pct)
+
+
+def _vol_card(cls: str, kpi: dict) -> str:
+    val_str  = f'{kpi["current"]:,.0f}' if not pd.isna(kpi["current"]) else "—"
+    t4w_str  = f'{kpi["t4w"]:,.0f}' if not pd.isna(kpi["t4w"]) else "—"
+    olym_str = f'{kpi["olympic"]:,.0f}' if not pd.isna(kpi["olympic"]) else "—"
+    color = CLASS_COLORS.get(cls, DM_MUTED)
+    return f"""
+    <div class="snap-card">
+      <div class="snap-class" style="color:{color}">{cls.title()}</div>
+      <div class="snap-value">{val_str} <span style="font-size:0.9rem;color:{DM_MUTED}">head</span></div>
+      <div class="snap-grid">
+        {_snap_item("WoW", _dc(kpi['wow'], '+.0f', ' hd') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
+        {_snap_item("YoY", _dc(kpi['yoy'], '+.0f', ' hd') + ' ' + _dc(kpi['yoy_pct'], '+.1f', '%'))}
+        {_snap_item("4-Wk Avg", f'<span class="snap-neu">{t4w_str} hd</span>')}
+        {_snap_item("vs Olympic Avg", _dc(kpi['vs_olympic'], '+.0f', ' hd') + ' ' + _dc(kpi['vs_olympic_pct'], '+.1f', '%'))}
+      </div>
+      <div style="margin-top:8px;font-size:0.7rem;color:{DM_MUTED}">
+        Olympic avg: {olym_str} head
+      </div>
+    </div>"""
+
+
+st.markdown(f'<div class="sec-hdr">Slaughter Volume — Weekly Snapshot (Head)</div>', unsafe_allow_html=True)
+vol_snap_classes = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS"]
+vol_cols = st.columns(len(vol_snap_classes))
+for col, cls in zip(vol_cols, vol_snap_classes):
+    kpi = vol_kpis(vol, cls)
+    col.markdown(_vol_card(cls, kpi), unsafe_allow_html=True)
 
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
@@ -757,7 +862,8 @@ with tab_data:
 st.divider()
 st.markdown(
     f'<p style="color:{DM_MUTED};font-size:.72rem;text-align:center">'
-    f'USDA NASS QuickStats · Federally Inspected Commercial Slaughter · '
-    f'Cached 1 hr &nbsp;|&nbsp; John Stewart &amp; Associates</p>',
+    f'<img src="{JSA_LOGO_WHITE}" style="height:18px;opacity:0.5;vertical-align:middle;margin-right:8px" />'
+    f'John Stewart &amp; Associates &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; '
+    f'Federally Inspected Commercial Slaughter &nbsp;·&nbsp; Cached 1 hr</p>',
     unsafe_allow_html=True,
 )
