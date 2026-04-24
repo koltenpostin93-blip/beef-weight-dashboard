@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import io
+import re
 from datetime import datetime
 
 # ── JSA Brand Colors ───────────────────────────────────────────────────────────
@@ -155,8 +156,6 @@ def fetch_ams_weekly() -> dict:
         text = r.text
     except Exception as e:
         return {"error": str(e)}
-
-    import re
 
     def _num(s):
         try:
