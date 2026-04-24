@@ -386,6 +386,52 @@ latest_date = wt["week_ending"].max()
 latest_year = int(wt.loc[wt["week_ending"] == latest_date, "year"].iloc[0])
 latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
+# ── Next Friday calculation ────────────────────────────────────────────────────
+_today      = datetime.now().date()
+_days_ahead = (4 - _today.weekday()) % 7   # 4 = Friday
+_days_ahead = 7 if _days_ahead == 0 else _days_ahead  # if today is Friday, next Friday
+_next_friday = _today + __import__("datetime").timedelta(days=_days_ahead)
+
+# ── Sidebar data info panel ────────────────────────────────────────────────────
+st.sidebar.divider()
+st.sidebar.markdown(f"""
+<div style="background:{DM_SURFACE2};border:1px solid {DM_BORDER};
+  border-left:3px solid {JSA_GREEN};border-radius:6px;padding:12px 14px;font-size:0.78rem">
+  <div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;
+    letter-spacing:.08em;margin-bottom:8px">Data Status</div>
+
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+    <span style="color:{DM_MUTED}">Data as of</span>
+    <span style="color:{DM_TEXT};font-weight:600">{latest_date.strftime('%b %d, %Y')}</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+    <span style="color:{DM_MUTED}">ISO Week</span>
+    <span style="color:{DM_TEXT};font-weight:600">Wk {latest_iso}, {latest_year}</span>
+  </div>
+
+  <div style="border-top:1px solid {DM_BORDER};margin:8px 0"></div>
+
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+    <span style="color:{DM_MUTED}">Next update</span>
+    <span style="color:{DM_TEXT};font-weight:600">{_next_friday.strftime('%b %d, %Y')}</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+    <span style="color:{DM_MUTED}">Update day</span>
+    <span style="color:{DM_TEXT};font-weight:600">Fridays</span>
+  </div>
+
+  <div style="border-top:1px solid {DM_BORDER};margin:8px 0"></div>
+
+  <div style="color:{DM_MUTED};font-size:0.68rem;line-height:1.5">
+    Source: USDA NASS<br>
+    Livestock Slaughter report<br>
+    Cache refreshes every hour
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 
