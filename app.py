@@ -35,6 +35,14 @@ CLASS_COLORS = {
     "GE 500 LBS": "#c8d4ca",   # light sage — headline class
 }
 CLASS_ORDER = ["GE 500 LBS", "STEERS", "HEIFERS", "COWS", "BULLS", "CALVES"]
+CLASS_DISPLAY = {
+    "GE 500 LBS": "Actual Carcass Weights",
+    "STEERS":     "Steers",
+    "HEIFERS":    "Heifers",
+    "COWS":       "Cows",
+    "BULLS":      "Bulls",
+    "CALVES":     "Calves",
+}
 
 try:
     API_KEY = st.secrets.get("NASS_API_KEY", "9A6D1EB8-4D94-3221-BA0C-ADD4533EA0C1")
@@ -269,7 +277,7 @@ def _snap_card(cls: str, kpi: dict, unit_label: str) -> str:
     color = CLASS_COLORS.get(cls, DM_MUTED)
     return f"""
     <div class="snap-card">
-      <div class="snap-class" style="color:{color}">{cls.title()}</div>
+      <div class="snap-class" style="color:{color}">{CLASS_DISPLAY.get(cls, cls.title())}</div>
       <div class="snap-value">{val_str} <span style="font-size:0.9rem;color:{DM_MUTED}">lb</span></div>
       <div class="snap-grid">
         {_snap_item("WoW", _dc(kpi['wow'], '+.1f', ' lb') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
@@ -455,7 +463,7 @@ def _vol_card(cls: str, kpi: dict) -> str:
     color = CLASS_COLORS.get(cls, DM_MUTED)
     return f"""
     <div class="snap-card">
-      <div class="snap-class" style="color:{color}">{cls.title()}</div>
+      <div class="snap-class" style="color:{color}">{CLASS_DISPLAY.get(cls, cls.title())}</div>
       <div class="snap-value">{val_str} <span style="font-size:0.9rem;color:{DM_MUTED}">head</span></div>
       <div class="snap-grid">
         {_snap_item("WoW", _dc(kpi['wow'], '+.0f', ' hd') + ' ' + _dc(kpi['wow_pct'], '+.1f', '%'))}
@@ -497,7 +505,7 @@ def _build_summary(classes: list) -> str:
         cur = f'{kpi["current"]:,.1f}' if not pd.isna(kpi["current"]) else "—"
         t4  = f'{kpi["t4w"]:,.1f}' if not pd.isna(kpi["t4w"]) else "—"
         rows += f"""<tr>
-          <td>{cls.title()}</td>
+          <td>{CLASS_DISPLAY.get(cls, cls.title())}</td>
           <td>{cur} lb</td>
           <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'])}</td>
           <td>{t4} lb</td>
@@ -525,7 +533,7 @@ def _build_vol_summary(classes: list) -> str:
         cur = f'{kpi["current"]:,.0f}' if not pd.isna(kpi["current"]) else "—"
         t4  = f'{kpi["t4w"]:,.0f}' if not pd.isna(kpi["t4w"]) else "—"
         rows += f"""<tr>
-          <td>{cls.title()}</td>
+          <td>{CLASS_DISPLAY.get(cls, cls.title())}</td>
           <td>{cur} hd</td>
           <td>{_fmt_delta(kpi['wow'], kpi['wow_pct'], ' hd')}</td>
           <td>{t4} hd</td>
