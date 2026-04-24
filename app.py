@@ -57,7 +57,7 @@ except Exception:
 BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 
 st.set_page_config(
-    page_title="JSA Beef Dashboard - USDA Beef Slaughter Weights",
+    page_title="JSA Beef Weight Dashboard",
     page_icon="🐂",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -456,10 +456,7 @@ with hdr_l:
       <img src="{JSA_LOGO_FULL}" style="height:48px" />
       <div>
         <div style="font-size:1.45rem;font-weight:700;color:{DM_TEXT};line-height:1.1">
-          JSA Beef Dashboard
-        </div>
-        <div style="font-size:0.95rem;font-weight:500;color:{DM_MUTED};line-height:1.2">
-          USDA Beef Slaughter Weights
+          Beef Slaughter Weight
         </div>
         <div style="color:{DM_MUTED};font-size:0.8rem;margin-top:2px">
           Weekly snapshot &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; Federally Inspected
