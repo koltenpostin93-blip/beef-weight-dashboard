@@ -399,6 +399,8 @@ latest_date = wt["week_ending"].max()
 latest_year = int(wt.loc[wt["week_ending"] == latest_date, "year"].iloc[0])
 latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
+vol_latest_date = vol["week_ending"].max() if not vol.empty else None
+
 # ── Next Friday calculation ────────────────────────────────────────────────────
 _today      = datetime.now().date()
 _days_ahead = (4 - _today.weekday()) % 7   # 4 = Friday; 0 means today IS Friday
@@ -413,8 +415,13 @@ st.sidebar.markdown(f"""
     letter-spacing:.08em;margin-bottom:8px">Data Status</div>
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-    <span style="color:{DM_MUTED}">Report date</span>
+    <span style="color:{DM_MUTED}">Weights as of</span>
     <span style="color:{DM_TEXT};font-weight:600">{latest_date.strftime('%b %d, %Y')}</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+    <span style="color:{DM_MUTED}">Volume as of</span>
+    <span style="color:{DM_TEXT};font-weight:600">{vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else 'N/A'}</span>
   </div>
 
   <div style="display:flex;justify-content:space-between;margin-bottom:6px">
