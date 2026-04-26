@@ -600,17 +600,17 @@ st.sidebar.markdown(f"""
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 
-hdr_l, hdr_r = st.columns([3, 1])
+hdr_l, hdr_r = st.columns([4, 1])
 with hdr_l:
     st.markdown(f"""
-    <div style="display:flex;align-items:center;gap:18px;padding:6px 0 2px">
-      <img src="{JSA_LOGO_FULL}" style="height:48px" />
+    <div style="display:flex;align-items:center;gap:24px;padding:10px 0 8px">
+      <img src="{JSA_LOGO_FULL}" style="height:68px" />
       <div>
-        <div style="font-size:1.45rem;font-weight:700;color:{DM_TEXT};line-height:1.1">
+        <div style="font-size:2rem;font-weight:700;color:{DM_TEXT};line-height:1.1;letter-spacing:-0.01em">
           USDA Beef Slaughter Weights
         </div>
-        <div style="color:{DM_MUTED};font-size:0.8rem;margin-top:2px">
-          Weekly snapshot &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; Federally Inspected
+        <div style="color:{DM_MUTED};font-size:0.88rem;margin-top:5px;letter-spacing:.02em">
+          Weekly snapshot &nbsp;·&nbsp; USDA NASS QuickStats &nbsp;·&nbsp; Federally Inspected &nbsp;·&nbsp; Commercial Slaughter
         </div>
       </div>
     </div>
