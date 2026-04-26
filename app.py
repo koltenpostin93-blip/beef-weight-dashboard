@@ -145,6 +145,91 @@ def _nass_get(params: dict) -> dict:
 
 
 
+AMS_URL = "https://www.ams.usda.gov/mnreports/sj_ls712.txt"
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_ams_raw() -> dict:
+    """Lightweight AMS fetch used for sidebar/header dates — reused by full render."""
+    try:
+        r = requests.get(AMS_URL, timeout=20)
+        r.raise_for_status()
+        text = r.text
+    except Exception as e:
+        return {"error": str(e)}
+
+    def _num(s):
+        try: return float(str(s).replace(",","").replace("%","").strip())
+        except: return float("nan")
+    def _pd(s):
+        s = s.strip()
+        for fmt in ("%d-%b-%y", "%d-%b-%Y"):
+            try: return datetime.strptime(s, fmt).date()
+            except ValueError: pass
+        return None
+
+    res = {}
+    m = re.search(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\w+\s+\d+,\s+\d{4})", text)
+    if m:
+        try: res["report_date"] = datetime.strptime(m.group(2).strip(), "%b %d, %Y").date()
+        except: res["report_date"] = None
+
+    slaughter = {}
+    m = re.search(r"Livestock Slaughter \(head\)(.*?)(?:----)", text, re.DOTALL)
+    if m:
+        for line in m.group(1).splitlines():
+            parts = line.strip().split()
+            if not parts: continue
+            d = _pd(parts[0])
+            if d and len(parts) >= 5:
+                slaughter[d] = dict(zip(["Cattle","Calves","Hogs","Sheep"],[_num(p) for p in parts[1:5]]))
+            elif len(parts) >= 6 and parts[1] == "YTD":
+                slaughter[f"YTD_{parts[0]}"] = dict(zip(["Cattle","Calves","Hogs","Sheep"],[_num(p) for p in parts[2:6]]))
+    res["slaughter"] = slaughter
+
+    weights = {"live": {}, "dressed": {}}
+    m = re.search(r"Average Weights \(lbs\)(.*?)(?:----)", text, re.DOTALL)
+    if m:
+        mode = None
+        for line in m.group(1).splitlines():
+            line = line.strip()
+            if not line: continue
+            if re.search(r"Live:", line, re.IGNORECASE): mode = "live"
+            elif re.search(r"Dressed:", line, re.IGNORECASE): mode = "dressed"
+            if mode is None: continue
+            parts = line.split()
+            d = _pd(parts[0]) if parts else None
+            if d:
+                nums = []
+                for p in parts[1:]:
+                    try: nums.append(float(p.replace(",","")))
+                    except: pass
+                if len(nums) >= 4:
+                    weights[mode][d] = {"Cattle":nums[0],"Calves":nums[1],"Hogs":nums[2],"Sheep":nums[3]}
+    res["weights"] = weights
+
+    class_mix = {}
+    m = re.search(r"Percentage of Total Cattle Slaughtered by Class(.*?)(?:----|\Z)", text, re.DOTALL)
+    if m:
+        for line in m.group(1).splitlines():
+            parts = line.strip().split()
+            d = _pd(parts[0]) if parts else None
+            if d and len(parts) >= 5:
+                class_mix[d] = dict(zip(["Steers","Heifers","Cows","Bulls"],[_num(p) for p in parts[1:5]]))
+    res["class_mix"] = class_mix
+
+    meat_prod = {}
+    m = re.search(r"Meat Production \(millions of pounds\)(.*?)(?:----)", text, re.DOTALL)
+    if m:
+        for line in m.group(1).splitlines():
+            parts = line.strip().split()
+            d = _pd(parts[0]) if parts else None
+            if d and len(parts) >= 5:
+                vals = [_num(p) for p in parts[1:6]]
+                meat_prod[d] = {"Beef":vals[0],"Calf/Veal":vals[1],"Pork":vals[2],"Lamb":vals[3],"Total":vals[4]}
+    res["meat_prod"] = meat_prod
+    return res
+
+
 def _build_df(frames: list) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame()
@@ -433,6 +518,13 @@ latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
 vol_latest_date = vol["week_ending"].max() if not vol.empty else None
 
+with st.spinner("Loading USDA AMS data…"):
+    _ams_meta = _fetch_ams_raw()
+_ams_rpt_date   = _ams_meta.get("report_date")
+_ams_slaughter  = _ams_meta.get("slaughter", {})
+_ams_dated_keys = sorted([k for k in _ams_slaughter if not isinstance(k, str)], reverse=True)
+_ams_wk_date    = _ams_dated_keys[0] if _ams_dated_keys else None
+
 # ── Next Friday calculation ────────────────────────────────────────────────────
 _today      = datetime.now().date()
 _days_ahead = (4 - _today.weekday()) % 7   # 4 = Friday; 0 means today IS Friday
@@ -440,13 +532,18 @@ _next_friday = _today + __import__("datetime").timedelta(days=_days_ahead)
 
 # ── Sidebar data info panel ────────────────────────────────────────────────────
 st.sidebar.divider()
+_ams_wk_str  = _ams_wk_date.strftime('%b %d, %Y')  if _ams_wk_date  else "N/A"
+_ams_rpt_str = _ams_rpt_date.strftime('%b %d, %Y') if _ams_rpt_date else "N/A"
+_vol_color   = '#fbbf24' if vol_latest_date is not None and vol_latest_date != latest_date else DM_TEXT
+_vol_date_s  = vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else 'N/A'
+_vol_iso_s   = f"Wk {int(vol_latest_date.isocalendar()[1])}, {vol_latest_date.year}" if vol_latest_date is not None else 'N/A'
 st.sidebar.markdown(f"""
 <div style="background:{DM_SURFACE2};border:1px solid {DM_BORDER};
   border-left:3px solid {JSA_GREEN};border-radius:6px;padding:12px 14px;font-size:0.78rem">
   <div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;
     letter-spacing:.08em;margin-bottom:8px">Data Status</div>
 
-  <div style="color:{DM_MUTED};font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Weights</div>
+  <div style="color:{JSA_GREEN_LT};font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">📊 NASS — Weights</div>
   <div style="display:flex;justify-content:space-between;margin-bottom:2px">
     <span style="color:{DM_MUTED}">Report date</span>
     <span style="color:{DM_TEXT};font-weight:600">{latest_date.strftime('%b %d, %Y')}</span>
@@ -456,14 +553,26 @@ st.sidebar.markdown(f"""
     <span style="color:{DM_TEXT};font-weight:600">Wk {latest_iso}, {latest_year}</span>
   </div>
 
-  <div style="color:{DM_MUTED};font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Slaughter Volume</div>
+  <div style="color:{JSA_GREEN_LT};font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">📊 NASS — Slaughter Volume</div>
   <div style="display:flex;justify-content:space-between;margin-bottom:2px">
     <span style="color:{DM_MUTED}">Report date</span>
-    <span style="color:{'#fbbf24' if vol_latest_date is not None and vol_latest_date != latest_date else DM_TEXT};font-weight:600">{vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else 'N/A'}</span>
+    <span style="color:{_vol_color};font-weight:600">{_vol_date_s}</span>
   </div>
   <div style="display:flex;justify-content:space-between;margin-bottom:8px">
     <span style="color:{DM_MUTED}">ISO Week</span>
-    <span style="color:{DM_TEXT};font-weight:600">{f"Wk {int(vol_latest_date.isocalendar()[1])}, {vol_latest_date.year}" if vol_latest_date is not None else 'N/A'}</span>
+    <span style="color:{DM_TEXT};font-weight:600">{_vol_iso_s}</span>
+  </div>
+
+  <div style="border-top:1px solid {DM_BORDER};margin:8px 0"></div>
+
+  <div style="color:#6fa8c4;font-size:0.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🗓️ AMS — Weekly Slaughter</div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+    <span style="color:{DM_MUTED}">Week ending</span>
+    <span style="color:{DM_TEXT};font-weight:600">{_ams_wk_str}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+    <span style="color:{DM_MUTED}">Report date</span>
+    <span style="color:{DM_TEXT};font-weight:600">{_ams_rpt_str}</span>
   </div>
 
   <div style="border-top:1px solid {DM_BORDER};margin:8px 0"></div>
@@ -481,8 +590,8 @@ st.sidebar.markdown(f"""
   <div style="border-top:1px solid {DM_BORDER};margin:8px 0"></div>
 
   <div style="color:{DM_MUTED};font-size:0.68rem;line-height:1.5">
-    Source: USDA NASS<br>
-    Livestock Slaughter report<br>
+    NASS: USDA Livestock Slaughter report<br>
+    AMS: LPGMN report SJ_LS712<br>
     Cache refreshes every hour
   </div>
 </div>
@@ -507,18 +616,25 @@ with hdr_l:
     </div>
     """, unsafe_allow_html=True)
 with hdr_r:
-    _vol_str = vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else "N/A"
-    _wt_str  = latest_date.strftime('%b %d, %Y')
+    _vol_str     = vol_latest_date.strftime('%b %d, %Y') if vol_latest_date is not None else "N/A"
+    _wt_str      = latest_date.strftime('%b %d, %Y')
     _dates_match = vol_latest_date is not None and vol_latest_date == latest_date
+    _ams_hdr_str = _ams_wk_date.strftime('%b %d, %Y') if _ams_wk_date else "N/A"
     st.markdown(f"""
     <div style="text-align:right;padding-top:6px;font-size:0.75rem">
-      <div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-bottom:3px">
+      <div style="color:{DM_MUTED};font-size:0.6rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">NASS</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-bottom:2px">
         <span style="color:{DM_MUTED}">Weights as of</span>
-        <span style="color:{DM_TEXT};font-weight:700;font-size:0.95rem">{_wt_str}</span>
+        <span style="color:{DM_TEXT};font-weight:700;font-size:0.9rem">{_wt_str}</span>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-bottom:6px">
         <span style="color:{DM_MUTED}">Slaughter vol as of</span>
-        <span style="color:{'#fbbf24' if not _dates_match else DM_TEXT};font-weight:700;font-size:0.95rem">{_vol_str}</span>
+        <span style="color:{'#fbbf24' if not _dates_match else DM_TEXT};font-weight:700;font-size:0.9rem">{_vol_str}</span>
+      </div>
+      <div style="color:#6fa8c4;font-size:0.6rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">AMS</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-bottom:6px">
+        <span style="color:{DM_MUTED}">Week ending</span>
+        <span style="color:#6fa8c4;font-weight:700;font-size:0.9rem">{_ams_hdr_str}</span>
       </div>
       <div style="display:inline-block;background:{JSA_GREEN};color:#fff;font-size:.68rem;
         font-weight:600;padding:2px 8px;border-radius:3px;letter-spacing:.06em">
@@ -1045,93 +1161,7 @@ def _render_nass():
     )
 
 
-# ── AMS fetch & render ────────────────────────────────────────────────────────
-
-AMS_URL = "https://www.ams.usda.gov/mnreports/sj_ls712.txt"
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_ams_weekly() -> dict:
-    try:
-        r = requests.get(AMS_URL, timeout=20)
-        r.raise_for_status()
-        text = r.text
-    except Exception as e:
-        return {"error": str(e)}
-
-    def _num(s):
-        try: return float(str(s).replace(",","").replace("%","").strip())
-        except: return float("nan")
-
-    def _pd(s):
-        s = s.strip()
-        for fmt in ("%d-%b-%y", "%d-%b-%Y"):
-            try: return datetime.strptime(s, fmt).date()
-            except ValueError: pass
-        return None
-
-    res = {}
-    m = re.search(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\w+\s+\d+,\s+\d{4})", text)
-    if m:
-        try: res["report_date"] = datetime.strptime(m.group(2).strip(), "%b %d, %Y").date()
-        except: res["report_date"] = None
-
-    slaughter = {}
-    m = re.search(r"Livestock Slaughter \(head\)(.*?)(?:----)", text, re.DOTALL)
-    if m:
-        for line in m.group(1).splitlines():
-            parts = line.strip().split()
-            if not parts: continue
-            d = _pd(parts[0])
-            if d and len(parts) >= 5:
-                slaughter[d] = dict(zip(["Cattle","Calves","Hogs","Sheep"], [_num(p) for p in parts[1:5]]))
-            elif len(parts) >= 6 and parts[1] == "YTD":
-                slaughter[f"YTD_{parts[0]}"] = dict(zip(["Cattle","Calves","Hogs","Sheep"], [_num(p) for p in parts[2:6]]))
-    res["slaughter"] = slaughter
-
-    weights = {"live": {}, "dressed": {}}
-    m = re.search(r"Average Weights \(lbs\)(.*?)(?:----)", text, re.DOTALL)
-    if m:
-        mode = None
-        for line in m.group(1).splitlines():
-            line = line.strip()
-            if not line: continue
-            if re.search(r"Live:", line, re.IGNORECASE): mode = "live"
-            elif re.search(r"Dressed:", line, re.IGNORECASE): mode = "dressed"
-            if mode is None: continue
-            parts = line.split()
-            d = _pd(parts[0]) if parts else None
-            if d:
-                nums = [float(p.replace(",","")) for p in parts[1:] if p.replace(",","").replace(".","").lstrip("-").isdigit() or (p.replace(",","").replace(".","").lstrip("-") and p.replace(",","").replace(".","").lstrip("-").replace(".","",1).isdigit())]
-                nums = []
-                for p in parts[1:]:
-                    try: nums.append(float(p.replace(",","")))
-                    except: pass
-                if len(nums) >= 4:
-                    weights[mode][d] = {"Cattle": nums[0], "Calves": nums[1], "Hogs": nums[2], "Sheep": nums[3]}
-    res["weights"] = weights
-
-    class_mix = {}
-    m = re.search(r"Percentage of Total Cattle Slaughtered by Class(.*?)(?:----|\Z)", text, re.DOTALL)
-    if m:
-        for line in m.group(1).splitlines():
-            parts = line.strip().split()
-            d = _pd(parts[0]) if parts else None
-            if d and len(parts) >= 5:
-                class_mix[d] = dict(zip(["Steers","Heifers","Cows","Bulls"], [_num(p) for p in parts[1:5]]))
-    res["class_mix"] = class_mix
-
-    meat_prod = {}
-    m = re.search(r"Meat Production \(millions of pounds\)(.*?)(?:----)", text, re.DOTALL)
-    if m:
-        for line in m.group(1).splitlines():
-            parts = line.strip().split()
-            d = _pd(parts[0]) if parts else None
-            if d and len(parts) >= 5:
-                vals = [_num(p) for p in parts[1:6]]
-                meat_prod[d] = {"Beef": vals[0], "Calf/Veal": vals[1], "Pork": vals[2], "Lamb": vals[3], "Total": vals[4]}
-    res["meat_prod"] = meat_prod
-    return res
-
+# ── AMS render ────────────────────────────────────────────────────────────────
 
 def _hex_to_rgba(h, a=1.0):
     h = h.lstrip("#")
@@ -1140,7 +1170,7 @@ def _hex_to_rgba(h, a=1.0):
 
 
 def _render_ams_page():
-    ams = fetch_ams_weekly()
+    ams = _fetch_ams_raw()
     if "error" in ams:
         st.error(f"Could not load AMS report: {ams['error']}")
         return
