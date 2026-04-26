@@ -1119,21 +1119,23 @@ with tab_vol:
 # ── Tab 4 — AMS Weekly ────────────────────────────────────────────────────────
 
 with tab_ams:
-    with st.spinner("Loading AMS weekly report…"):
-        ams = fetch_ams_weekly()
+    try:
+        with st.spinner("Loading AMS weekly report…"):
+            ams = fetch_ams_weekly()
 
-    if "error" in ams:
-        st.error(f"Could not load AMS report: {ams['error']}")
-    else:
-        slaughter  = ams.get("slaughter", {})
-        wts        = ams.get("weights", {})
-        class_mix  = ams.get("class_mix", {})
-        meat_prod  = ams.get("meat_prod", {})
-        rpt_date   = ams.get("report_date")
+        with st.expander("Debug — raw AMS data", expanded=False):
+            st.write({k: (str(v)[:200] if not isinstance(v, dict) else {str(kk): str(vv)[:100] for kk, vv in list(v.items())[:5]}) for k, v in ams.items()})
 
-        # ── Header ──────────────────────────────────────────────────────────────
-        dated_keys = [k for k in slaughter if isinstance(k, __builtins__.__class__.__mro__[0] if False else type(rpt_date)) and not isinstance(k, str)]
-        dated_keys = sorted([k for k in slaughter if not isinstance(k, str)], reverse=True)
+        if "error" in ams:
+            st.error(f"Could not load AMS report: {ams['error']}")
+        else:
+            slaughter  = ams.get("slaughter", {})
+            wts        = ams.get("weights", {})
+            class_mix  = ams.get("class_mix", {})
+            meat_prod  = ams.get("meat_prod", {})
+            rpt_date   = ams.get("report_date")
+
+            dated_keys = sorted([k for k in slaughter if not isinstance(k, str)], reverse=True)
         curr_date  = dated_keys[0] if dated_keys else None
         prev_date  = dated_keys[1] if len(dated_keys) > 1 else None
         yago_date  = dated_keys[2] if len(dated_keys) > 2 else None
@@ -1314,12 +1316,15 @@ with tab_ams:
                 column_config={"Week Ending": st.column_config.DateColumn(format="MM/DD/YYYY")},
             )
 
-        st.markdown(f"""
-        <div style="color:{DM_MUTED};font-size:0.68rem;margin-top:12px">
-          Source: USDA AMS Livestock, Poultry &amp; Grain Market News ·
-          Report <code style="color:{DM_MUTED}">SJ_LS712</code> · Updated Fridays
-        </div>
-        """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="color:{DM_MUTED};font-size:0.68rem;margin-top:12px">
+              Source: USDA AMS Livestock, Poultry &amp; Grain Market News ·
+              Report <code style="color:{DM_MUTED}">SJ_LS712</code> · Updated Fridays
+            </div>
+            """, unsafe_allow_html=True)
+
+    except Exception as _ams_err:
+        st.exception(_ams_err)
 
 
 # ── Tab 5 — Data ───────────────────────────────────────────────────────────────
