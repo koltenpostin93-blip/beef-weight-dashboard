@@ -116,9 +116,35 @@ st.markdown(f"""
   .sum-table tr:last-child td {{ border-bottom:none; }}
   .pos {{ color:{COL_POS}; }} .neg {{ color:{COL_NEG}; }}
 
-  .stTabs [data-baseweb="tab-list"] {{ background:{DM_SURFACE}; border-radius:8px; }}
-  .stTabs [data-baseweb="tab"] {{ color:{DM_MUTED}; }}
-  .stTabs [aria-selected="true"] {{ color:{JPSI_GREEN} !important; }}
+  /* ── Top-level page tabs ── */
+  .stTabs [data-baseweb="tab-list"] {{
+    background:{DM_SURFACE};
+    border-radius:10px;
+    padding:6px 8px;
+    gap:6px;
+    border:1px solid {DM_BORDER};
+  }}
+  .stTabs [data-baseweb="tab"] {{
+    color:{DM_MUTED};
+    font-size:1rem;
+    font-weight:600;
+    letter-spacing:.02em;
+    padding:10px 28px;
+    border-radius:7px;
+    border-bottom:none !important;
+    transition:background .15s, color .15s;
+  }}
+  .stTabs [data-baseweb="tab"]:hover {{
+    background:{DM_SURFACE2};
+    color:{DM_TEXT};
+  }}
+  .stTabs [aria-selected="true"] {{
+    color:#fff !important;
+    background:{JSA_GREEN} !important;
+  }}
+  /* hide the default underline indicator */
+  .stTabs [data-baseweb="tab-highlight"] {{ display:none !important; }}
+  .stTabs [data-baseweb="tab-border"]    {{ display:none !important; }}
   .sec-hdr {{
     color:{DM_MUTED}; font-size:0.72rem; text-transform:uppercase;
     letter-spacing:.1em; margin:14px 0 6px;
