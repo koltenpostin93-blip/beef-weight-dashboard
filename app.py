@@ -671,7 +671,8 @@ with hdr_r:
 st.divider()
 
 # ── Top-level page tabs ────────────────────────────────────────────────────────
-_page_nass, _page_ams = st.tabs([
+_page_summary, _page_nass, _page_ams = st.tabs([
+    "⭐  Summary",
     "📊  NASS Beef Weights & Slaughter",
     "🗓️  AMS Weekly Slaughter",
 ])
@@ -1367,7 +1368,199 @@ def _render_ams_page():
                 unsafe_allow_html=True)
 
 
+# ── Summary tab ───────────────────────────────────────────────────────────────
+
+def _render_summary():
+    """Summary tab — NASS weight tiles + AMS slaughter tiles + seasonal chart."""
+
+    # ── NASS Weight tiles ────────────────────────────────────────────────────
+    st.markdown(
+        f'<div class="sec-hdr" style="font-size:0.8rem;color:{JSA_GREEN_LT}">'
+        f'📊 NASS Beef Weights — Week Ending {latest_date.strftime("%b %d, %Y")}</div>',
+        unsafe_allow_html=True,
+    )
+    wt_cols = st.columns(len(snap_classes))
+    for col, cls in zip(wt_cols, snap_classes):
+        kpi = week_kpis(wt, cls)
+        col.markdown(_snap_card(cls, kpi, unit_label), unsafe_allow_html=True)
+
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+
+    # ── AMS Slaughter tiles ──────────────────────────────────────────────────
+    ams       = _ams_meta
+    slaughter = ams.get("slaughter", {})
+    dk        = sorted([k for k in slaughter if not isinstance(k, str)], reverse=True)
+    curr_d    = dk[0] if dk        else None
+    prev_d    = dk[1] if len(dk)>1 else None
+    yago_d    = dk[2] if len(dk)>2 else None
+    wk_str    = curr_d.strftime("%b %d, %Y") if curr_d else "N/A"
+
+    st.markdown(
+        f'<div class="sec-hdr" style="font-size:0.8rem;color:#6fa8c4">'
+        f'🗓️ AMS Weekly Slaughter — Week Ending {wk_str}</div>',
+        unsafe_allow_html=True,
+    )
+
+    def _fd(v, pct=False):
+        if pd.isna(v): return "—"
+        return f"{v:+.1f}%" if pct else f"{v:+,.0f}"
+    def _fc(v): return COL_POS if (not pd.isna(v) and v >= 0) else COL_NEG
+
+    sp_colors = {"Cattle": JSA_GREEN_LT, "Calves": "#c4b456", "Hogs": "#c98a56", "Sheep": "#6fa8c4"}
+    ams_cols  = st.columns(4)
+    for col, sp in zip(ams_cols, ["Cattle", "Calves", "Hogs", "Sheep"]):
+        cv  = slaughter.get(curr_d, {}).get(sp, float("nan")) if curr_d else float("nan")
+        pv  = slaughter.get(prev_d, {}).get(sp, float("nan")) if prev_d else float("nan")
+        yv  = slaughter.get(yago_d, {}).get(sp, float("nan")) if yago_d else float("nan")
+        wow = cv - pv if not (pd.isna(cv) or pd.isna(pv)) else float("nan")
+        yoy = cv - yv if not (pd.isna(cv) or pd.isna(yv)) else float("nan")
+        wow_p = wow/pv*100  if (not pd.isna(pv) and pv != 0) else float("nan")
+        yoy_p = yoy/yv*100  if (not pd.isna(yv) and yv != 0) else float("nan")
+        ytd_c = slaughter.get(f"YTD_{curr_d.year if curr_d else ''}", {}).get(sp, float("nan"))
+        ytd_p = slaughter.get(f"YTD_{(curr_d.year-1) if curr_d else ''}", {}).get(sp, float("nan"))
+        ytd_g = (ytd_c-ytd_p)/ytd_p*100 if (not (pd.isna(ytd_c) or pd.isna(ytd_p)) and ytd_p != 0) else float("nan")
+        cv_s  = "—" if pd.isna(cv) else f"{cv:,.0f}"
+        tc    = sp_colors.get(sp, JSA_GREEN)
+        col.markdown(f"""
+        <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
+          border-top:3px solid {tc};border-radius:6px;padding:14px 16px">
+          <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;
+            letter-spacing:.07em;margin-bottom:6px">{sp}</div>
+          <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{cv_s}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
+              font-size:0.7rem;color:{_fc(wow)}">WoW {_fd(wow_p,True)}</span>
+            <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
+              font-size:0.7rem;color:{_fc(yoy)}">YoY {_fd(yoy_p,True)}</span>
+          </div>
+          <div style="color:{DM_MUTED};font-size:0.7rem">
+            YTD vs prior yr: <span style="color:{_fc(ytd_g)}">{_fd(ytd_g,True)}</span>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+
+    # ── Seasonal chart ───────────────────────────────────────────────────────
+    st.markdown(
+        f'<div class="sec-hdr" style="font-size:0.8rem">📈 Seasonal Overlay Chart</div>',
+        unsafe_allow_html=True,
+    )
+
+    c1, c2, c3 = st.columns([2, 2, 1])
+    with c1:
+        chart_src = st.radio(
+            "Data",
+            ["Weights (NASS)", "Slaughter Volume (NASS)"],
+            horizontal=True,
+            key="sum_src",
+        )
+    with c2:
+        if chart_src == "Weights (NASS)":
+            sub_cls = st.selectbox(
+                "Class", CLASS_ORDER, format_func=_fmt_cls, key="sum_cls_wt",
+            )
+        else:
+            sub_cls = st.selectbox(
+                "Class", CLASS_ORDER,
+                format_func=lambda c: VOL_DISPLAY.get(c, c.title()),
+                key="sum_cls_vol",
+            )
+    with c3:
+        n_yrs = st.slider("Years", 3, 10, 6, key="sum_nyrs")
+
+    # Pick dataset and labels
+    if chart_src == "Weights (NASS)":
+        chart_df  = wt[wt["class_desc"] == sub_cls].copy()
+        y_label   = "lb / head"
+        cls_label = _fmt_cls(sub_cls)
+        val_fmt   = ",.1f"
+        title_sfx = weight_unit
+    else:
+        chart_df  = vol[vol["class_desc"] == sub_cls].copy()
+        y_label   = "Head"
+        cls_label = VOL_DISPLAY.get(sub_cls, sub_cls.title())
+        val_fmt   = ",.0f"
+        title_sfx = "Head Count"
+
+    if chart_df.empty:
+        st.warning("No data for the selected combination.")
+        return
+
+    chart_df["day_of_year"] = chart_df["week_ending"].dt.dayofyear
+    ly_max   = int(chart_df["year"].max())
+    yr_list  = [y for y in range(ly_max - n_yrs + 1, ly_max + 1)
+                if y in chart_df["year"].unique()]
+
+    month_ticks  = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+    month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+    # 5yr range + avg
+    all_doys    = sorted(chart_df["day_of_year"].unique())
+    doy_to_iso  = chart_df.groupby("day_of_year")["iso_week"].first().to_dict()
+    olym_map    = olympic_series(chart_df, ly_max, n=5)
+
+    olym_hi, olym_lo, olym_avg = [], [], []
+    for d in all_doys:
+        iw = doy_to_iso.get(d, 0)
+        yr_vals = [_nearest_week(chart_df, ly_max - i, iw) for i in range(1, 6)]
+        yr_vals = [v for v in yr_vals if not pd.isna(v)]
+        olym_hi.append(max(yr_vals)  if yr_vals else float("nan"))
+        olym_lo.append(min(yr_vals)  if yr_vals else float("nan"))
+        olym_avg.append(olym_map.get(iw, float("nan")))
+
+    # Year color palette — current year gets JSA green, others cycle through muted tones
+    _yr_palette = [
+        "#6fa8c4", "#c98a56", "#9b89c4", "#c4b456",
+        "#e07070", "#c8d4ca", "#7a9485", "#fbbf24", "#e2a8c4",
+    ]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=all_doys + all_doys[::-1],
+        y=olym_hi + olym_lo[::-1],
+        fill="toself", fillcolor="rgba(122,153,144,0.10)",
+        line=dict(color="rgba(0,0,0,0)"),
+        name="5yr Range", hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=all_doys, y=olym_avg,
+        name="5yr Avg", mode="lines",
+        line=dict(color="rgba(122,153,144,0.75)", width=1.8, dash="dash"),
+        hovertemplate=f"5yr avg: %{{y:{val_fmt}}}<extra></extra>",
+    ))
+
+    # Older years first (drawn underneath), current year last (on top)
+    older = [y for y in yr_list if y != ly_max]
+    for i, yr in enumerate(older):
+        yd    = chart_df[chart_df["year"] == yr].sort_values("day_of_year")
+        color = _hex_to_rgba(_yr_palette[i % len(_yr_palette)], 0.55)
+        fig.add_trace(go.Scatter(
+            x=yd["day_of_year"], y=yd["Value"],
+            name=str(yr), mode="lines",
+            line=dict(color=color, width=1.4),
+            hovertemplate=f"{yr}: %{{y:{val_fmt}}}<extra></extra>",
+        ))
+
+    # Current year — bold green on top
+    cur_df = chart_df[chart_df["year"] == ly_max].sort_values("day_of_year")
+    fig.add_trace(go.Scatter(
+        x=cur_df["day_of_year"], y=cur_df["Value"],
+        name=str(ly_max), mode="lines+markers",
+        line=dict(color=JPSI_GREEN, width=2.8),
+        marker=dict(size=5, color=JPSI_GREEN),
+        hovertemplate=f"{ly_max}: %{{y:{val_fmt}}}<extra></extra>",
+    ))
+
+    _apply(fig, f"{cls_label} — Seasonal Overlay · {title_sfx}", 500, y_label)
+    fig.update_xaxes(tickmode="array", tickvals=month_ticks, ticktext=month_labels)
+    st.plotly_chart(fig, use_container_width=True)
+
+
 # ── Render pages ──────────────────────────────────────────────────────────────
+
+with _page_summary:
+    _render_summary()
 
 with _page_nass:
     _render_nass()
