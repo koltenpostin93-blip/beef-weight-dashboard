@@ -1449,7 +1449,8 @@ def _render_ams_page():
     if meat_prod:
         st.markdown('<div class="sec-hdr">Weekly Meat Production (million lbs)</div>',
                     unsafe_allow_html=True)
-        mp_df = pd.DataFrame([{"Week Ending": d, **v} for d,v in sorted(meat_prod.items(), reverse=True)])
+        mp_df = pd.DataFrame([{"Week Ending": d, **v} for d,v in sorted(
+            [(k,v) for k,v in meat_prod.items() if not isinstance(k, str)], reverse=True)])
         st.dataframe(mp_df, use_container_width=True, hide_index=True,
                      column_config={"Week Ending": st.column_config.DateColumn(format="MM/DD/YYYY")})
 
