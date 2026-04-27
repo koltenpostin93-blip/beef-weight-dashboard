@@ -1549,13 +1549,52 @@ def _render_summary():
     ref_html = (f'<div style="color:{DM_MUTED};font-size:0.68rem;margin-top:4px">'
                 f'vs {prev_wk_str} &amp; {yago_str}</div>')
 
-    ams_cols = st.columns(3)
+    # ── Beef production values for the 4th tile ──────────────────────────────
+    mp      = ams.get("meat_prod", {})
+    mp_dk   = sorted([k for k in mp if not isinstance(k, str)], reverse=True)
+    mp_cd   = mp_dk[0] if mp_dk           else None
+    mp_pd   = mp_dk[1] if len(mp_dk) > 1  else None
+    mp_yd   = mp_dk[2] if len(mp_dk) > 2  else None
+    mp_yr_s = mp_cd.year if mp_cd else datetime.now().year
+    bc      = mp.get(mp_cd, {}).get("Beef", float("nan")) if mp_cd else float("nan")
+    bp_     = mp.get(mp_pd, {}).get("Beef", float("nan")) if mp_pd else float("nan")
+    by_     = mp.get(mp_yd, {}).get("Beef", float("nan")) if mp_yd else float("nan")
+    ytd_bc  = mp.get(f"YTD_{mp_yr_s}",   {}).get("Beef", float("nan"))
+    ytd_bp  = mp.get(f"YTD_{mp_yr_s-1}", {}).get("Beef", float("nan"))
+    ytd_bg  = (ytd_bc-ytd_bp)/ytd_bp*100 if not (pd.isna(ytd_bc) or pd.isna(ytd_bp)) and ytd_bp != 0 else float("nan")
+    bc_wow  = bc-bp_ if not (pd.isna(bc) or pd.isna(bp_)) else float("nan")
+    bc_yoy  = bc-by_ if not (pd.isna(bc) or pd.isna(by_)) else float("nan")
+    bc_wow_p = bc_wow/bp_*100 if (not pd.isna(bc_wow) and bp_ != 0) else float("nan")
+    bc_yoy_p = bc_yoy/by_*100 if (not pd.isna(bc_yoy) and by_ != 0) else float("nan")
+
+    bc_s    = "—" if pd.isna(bc)    else f"{bc:,.1f}"
+    ytd_bc_s = "—" if pd.isna(ytd_bc) else f"{ytd_bc:,.1f}"
+    ytd_bp_s = "—" if pd.isna(ytd_bp) else f"{ytd_bp:,.1f}"
+    prod_wow_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(bc_wow)}">WoW {_fd(bc_wow_p,True)}</span>' if not pd.isna(bc_wow) else ""
+    prod_yoy_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(bc_yoy)}">YoY {_fd(bc_yoy_p,True)}</span>' if not pd.isna(bc_yoy) else ""
+    prod_badges = f"{prod_wow_sp} {prod_yoy_sp}".strip()
+    prod_extra  = (f'<div style="color:{DM_MUTED};font-size:0.7rem;margin-top:6px">'
+                   f'{mp_yr_s} YTD: {ytd_bc_s} M lbs &nbsp;'
+                   f'<span style="color:{_fc(ytd_bg)};font-weight:600">{_fd(ytd_bg,True)}</span>'
+                   f' vs {mp_yr_s-1} ({ytd_bp_s} M lbs)</div>')
+
+    ams_cols = st.columns(4)
     _tile(ams_cols[0], "Cattle Slaughter", sl_curr, "head",
           sl_wow, sl_wow_p, sl_yoy, sl_yoy_p, ytd_html, JSA_GREEN_LT)
     _tile(ams_cols[1], "Avg Live Weight — Cattle (Est.)", lv_curr, "lb",
           lv_wow, lv_wow_p, lv_yoy, lv_yoy_p, ref_html, "#6fa8c4")
     _tile(ams_cols[2], "Avg Dressed Weight — Cattle (Est.)", dr_curr, "lb",
           dr_wow, dr_wow_p, dr_yoy, dr_yoy_p, ref_html, "#c98a56")
+    # 4th tile — beef meat production
+    ams_cols[3].markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid #9b89c4;border-radius:6px;padding:14px 16px;height:100%">'
+        f'<div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Beef Production (Est.) · M lbs</div>'
+        f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;line-height:1.1;margin-bottom:10px">{bc_s} <span style="font-size:0.85rem;color:{DM_MUTED}">M lbs</span></div>'
+        f'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">{prod_badges}</div>'
+        f'{prod_extra}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
 
