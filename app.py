@@ -1283,10 +1283,10 @@ def _render_ams_page():
     # ── Cattle average weight tiles ───────────────────────────────────────────
     # Use actual dates as tile labels — avoids "current/prior" ambiguity since
     # the AMS report is published Friday before the week-ending Saturday.
-    curr_lbl = f"Live · Wk Ending {curr_d.strftime('%b %d, %Y')}" if curr_d else "Live — Latest Wk"
-    prev_lbl = f"Live · Wk Ending {prev_d.strftime('%b %d, %Y')}" if prev_d else "Live — Prior Wk"
-    curr_dr_lbl = f"Dressed · Wk Ending {curr_d.strftime('%b %d, %Y')}" if curr_d else "Dressed — Latest Wk"
-    prev_dr_lbl = f"Dressed · Wk Ending {prev_d.strftime('%b %d, %Y')}" if prev_d else "Dressed — Prior Wk"
+    curr_lbl    = f"Live (Est.) · Wk Ending {curr_d.strftime('%b %d, %Y')}" if curr_d else "Live — Latest Wk"
+    prev_lbl    = f"Live (Est.) · Wk Ending {prev_d.strftime('%b %d, %Y')}" if prev_d else "Live — Prior Wk"
+    curr_dr_lbl = f"Dressed (Est.) · Wk Ending {curr_d.strftime('%b %d, %Y')}" if curr_d else "Dressed — Latest Wk"
+    prev_dr_lbl = f"Dressed (Est.) · Wk Ending {prev_d.strftime('%b %d, %Y')}" if prev_d else "Dressed — Prior Wk"
     yago_lbl = yago_d.strftime("%b %d, %Y") if yago_d else "yr ago"
 
     st.markdown(f'<div class="sec-hdr">Cattle Average Weights &nbsp;·&nbsp; <span style="color:{DM_MUTED};font-size:0.65rem;font-weight:400">WoW compares the two most recent weeks · YoY vs {yago_lbl}</span></div>',
@@ -1308,23 +1308,23 @@ def _render_ams_page():
         cv2s  = "—" if pd.isna(cv2) else f"{cv2:,.0f} lb"
         wow2s = "—" if pd.isna(wow2) else f"{wow2:+.1f} lb"
         yoy2s = "—" if pd.isna(yoy2) else f"{yoy2:+.1f} lb"
-        # Border: blue for live, amber for dressed
         border_c = "#6fa8c4" if basis == "live" else "#c98a56"
-        wow_sp = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
-                  f'font-size:0.7rem;color:{_fc(wow2)}">WoW {wow2s}</span>') if has_wow else ""
-        yoy_sp = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
-                  f'font-size:0.7rem;color:{_fc(yoy2)}">YoY {yoy2s}</span>') if y_d2 else ""
-        col.markdown(f"""
-        <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
-          border-top:3px solid {border_c};border-radius:6px;padding:14px 16px">
-          <div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;
-            letter-spacing:.06em;margin-bottom:6px">{label}</div>
-          <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{cv2s}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            {wow_sp}
-            {yoy_sp}
-          </div>
-        </div>""", unsafe_allow_html=True)
+        # Build badge HTML as a single string — no empty lines inside the div
+        # (a blank line from an empty variable would end Streamlit's HTML block parser)
+        badges = []
+        if has_wow and not pd.isna(wow2):
+            badges.append(f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(wow2)}">WoW {wow2s}</span>')
+        if y_d2 and not pd.isna(yoy2):
+            badges.append(f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(yoy2)}">YoY {yoy2s}</span>')
+        badges_html = " ".join(badges)
+        col.markdown(
+            f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid {border_c};border-radius:6px;padding:14px 16px">'
+            f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">{label}</div>'
+            f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{cv2s}</div>'
+            f'<div style="display:flex;gap:6px;flex-wrap:wrap">{badges_html}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
@@ -1442,23 +1442,19 @@ def _render_summary():
     yago_str    = yago_d.strftime("%b %d, %Y") if yago_d else "yr ago"
 
     def _tile(col, label, value, unit, wow_val, wow_pct, yoy_val, yoy_pct, extra_html, border_color):
-        val_s = "—" if pd.isna(value) else (f"{value:,.0f}" if unit == "head" else f"{value:,.0f}")
-        col.markdown(f"""
-        <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
-          border-top:3px solid {border_color};border-radius:6px;padding:14px 16px">
-          <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;
-            letter-spacing:.07em;margin-bottom:4px">{label}</div>
-          <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;line-height:1.1;margin-bottom:10px">
-            {val_s} <span style="font-size:0.85rem;color:{DM_MUTED}">{unit}</span>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-            <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
-              font-size:0.7rem;color:{_fc(wow_val)}">WoW {_fd(wow_pct,True)}</span>
-            <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
-              font-size:0.7rem;color:{_fc(yoy_val)}">YoY {_fd(yoy_pct,True)}</span>
-          </div>
-          {extra_html}
-        </div>""", unsafe_allow_html=True)
+        val_s  = "—" if pd.isna(value) else f"{value:,.0f}"
+        wow_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(wow_val)}">WoW {_fd(wow_pct,True)}</span>'
+        yoy_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(yoy_val)}">YoY {_fd(yoy_pct,True)}</span>'
+        # All on one string — no blank lines inside the HTML block (blank lines end Streamlit's HTML parser)
+        col.markdown(
+            f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid {border_color};border-radius:6px;padding:14px 16px">'
+            f'<div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">{label}</div>'
+            f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;line-height:1.1;margin-bottom:10px">{val_s} <span style="font-size:0.85rem;color:{DM_MUTED}">{unit}</span></div>'
+            f'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">{wow_sp} {yoy_sp}</div>'
+            f'{extra_html}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     def _deltas(curr, prev, yago):
         wow_v = curr-prev if not (pd.isna(curr) or pd.isna(prev)) else float("nan")
@@ -1479,9 +1475,9 @@ def _render_summary():
     ams_cols = st.columns(3)
     _tile(ams_cols[0], "Cattle Slaughter", sl_curr, "head",
           sl_wow, sl_wow_p, sl_yoy, sl_yoy_p, ytd_html, JSA_GREEN_LT)
-    _tile(ams_cols[1], "Avg Live Weight — Cattle", lv_curr, "lb",
+    _tile(ams_cols[1], "Avg Live Weight — Cattle (Est.)", lv_curr, "lb",
           lv_wow, lv_wow_p, lv_yoy, lv_yoy_p, ref_html, "#6fa8c4")
-    _tile(ams_cols[2], "Avg Dressed Weight — Cattle", dr_curr, "lb",
+    _tile(ams_cols[2], "Avg Dressed Weight — Cattle (Est.)", dr_curr, "lb",
           dr_wow, dr_wow_p, dr_yoy, dr_yoy_p, ref_html, "#c98a56")
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
