@@ -1281,15 +1281,22 @@ def _render_ams_page():
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
     # ── Cattle average weight tiles ───────────────────────────────────────────
-    st.markdown('<div class="sec-hdr">Cattle Average Weights</div>', unsafe_allow_html=True)
-    # Tiles: Live Current, Live Prior, Dressed Current, Dressed Prior
-    # WoW label only shown when p_d2 is from same year (true week-over-week).
-    # When p_d2 is year-ago, label it "vs Yr Ago" to avoid confusion.
+    # Use actual dates as tile labels — avoids "current/prior" ambiguity since
+    # the AMS report is published Friday before the week-ending Saturday.
+    curr_lbl = f"Live · Wk Ending {curr_d.strftime('%b %d, %Y')}" if curr_d else "Live — Latest Wk"
+    prev_lbl = f"Live · Wk Ending {prev_d.strftime('%b %d, %Y')}" if prev_d else "Live — Prior Wk"
+    curr_dr_lbl = f"Dressed · Wk Ending {curr_d.strftime('%b %d, %Y')}" if curr_d else "Dressed — Latest Wk"
+    prev_dr_lbl = f"Dressed · Wk Ending {prev_d.strftime('%b %d, %Y')}" if prev_d else "Dressed — Prior Wk"
+    yago_lbl = yago_d.strftime("%b %d, %Y") if yago_d else "yr ago"
+
+    st.markdown(f'<div class="sec-hdr">Cattle Average Weights &nbsp;·&nbsp; <span style="color:{DM_MUTED};font-size:0.65rem;font-weight:400">WoW compares the two most recent weeks · YoY vs {yago_lbl}</span></div>',
+                unsafe_allow_html=True)
+
     wt_meta = [
-        ("Live — Current Wk",    "live",    curr_d, prev_d, yago_d, True),
-        ("Live — Prior Wk",      "live",    prev_d, None,   yago_d, False),
-        ("Dressed — Current Wk", "dressed", curr_d, prev_d, yago_d, True),
-        ("Dressed — Prior Wk",   "dressed", prev_d, None,   yago_d, False),
+        (curr_lbl,    "live",    curr_d, prev_d, yago_d, True),
+        (prev_lbl,    "live",    prev_d, None,   yago_d, False),
+        (curr_dr_lbl, "dressed", curr_d, prev_d, yago_d, True),
+        (prev_dr_lbl, "dressed", prev_d, None,   yago_d, False),
     ]
     wt_cols = st.columns(4)
     for col, (label, basis, c_d2, p_d2, y_d2, has_wow) in zip(wt_cols, wt_meta):
@@ -1301,16 +1308,17 @@ def _render_ams_page():
         cv2s  = "—" if pd.isna(cv2) else f"{cv2:,.0f} lb"
         wow2s = "—" if pd.isna(wow2) else f"{wow2:+.1f} lb"
         yoy2s = "—" if pd.isna(yoy2) else f"{yoy2:+.1f} lb"
-        yago_lbl  = yago_d.strftime("%b %d, %Y") if yago_d else "yr ago"
-        wow_sp  = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
-                   f'font-size:0.7rem;color:{_fc(wow2)}">WoW {wow2s}</span>') if has_wow else ""
-        yoy_sp  = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
-                   f'font-size:0.7rem;color:{_fc(yoy2)}">vs {yago_lbl} {yoy2s}</span>') if y_d2 else ""
+        # Border: blue for live, amber for dressed
+        border_c = "#6fa8c4" if basis == "live" else "#c98a56"
+        wow_sp = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
+                  f'font-size:0.7rem;color:{_fc(wow2)}">WoW {wow2s}</span>') if has_wow else ""
+        yoy_sp = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
+                  f'font-size:0.7rem;color:{_fc(yoy2)}">YoY {yoy2s}</span>') if y_d2 else ""
         col.markdown(f"""
         <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
-          border-top:3px solid {JSA_GREEN};border-radius:6px;padding:14px 16px">
-          <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;
-            letter-spacing:.07em;margin-bottom:6px">{label}</div>
+          border-top:3px solid {border_c};border-radius:6px;padding:14px 16px">
+          <div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;
+            letter-spacing:.06em;margin-bottom:6px">{label}</div>
           <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{cv2s}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             {wow_sp}
