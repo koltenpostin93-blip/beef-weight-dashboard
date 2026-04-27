@@ -1282,23 +1282,30 @@ def _render_ams_page():
 
     # ── Cattle average weight tiles ───────────────────────────────────────────
     st.markdown('<div class="sec-hdr">Cattle Average Weights</div>', unsafe_allow_html=True)
+    # Tiles: Live Current, Live Prior, Dressed Current, Dressed Prior
+    # WoW label only shown when p_d2 is from same year (true week-over-week).
+    # When p_d2 is year-ago, label it "vs Yr Ago" to avoid confusion.
     wt_meta = [
-        ("Live — Current Wk",    "live",    curr_d, prev_d, yago_d),
-        ("Live — Prior Wk",      "live",    prev_d, yago_d, None),
-        ("Dressed — Current Wk", "dressed", curr_d, prev_d, yago_d),
-        ("Dressed — Prior Wk",   "dressed", prev_d, yago_d, None),
+        ("Live — Current Wk",    "live",    curr_d, prev_d, yago_d, True),
+        ("Live — Prior Wk",      "live",    prev_d, None,   yago_d, False),
+        ("Dressed — Current Wk", "dressed", curr_d, prev_d, yago_d, True),
+        ("Dressed — Prior Wk",   "dressed", prev_d, None,   yago_d, False),
     ]
     wt_cols = st.columns(4)
-    for col, (label, basis, c_d2, p_d2, y_d2) in zip(wt_cols, wt_meta):
+    for col, (label, basis, c_d2, p_d2, y_d2, has_wow) in zip(wt_cols, wt_meta):
         cv2 = wts_ams.get(basis,{}).get(c_d2,{}).get("Cattle", float("nan")) if c_d2 else float("nan")
         pv2 = wts_ams.get(basis,{}).get(p_d2,{}).get("Cattle", float("nan")) if p_d2 else float("nan")
         yv2 = wts_ams.get(basis,{}).get(y_d2,{}).get("Cattle", float("nan")) if y_d2 else float("nan")
-        wow2 = cv2-pv2 if not(pd.isna(cv2) or pd.isna(pv2)) else float("nan")
+        wow2 = cv2-pv2 if (has_wow and not(pd.isna(cv2) or pd.isna(pv2))) else float("nan")
         yoy2 = cv2-yv2 if not(pd.isna(cv2) or pd.isna(yv2)) else float("nan")
         cv2s  = "—" if pd.isna(cv2) else f"{cv2:,.0f} lb"
         wow2s = "—" if pd.isna(wow2) else f"{wow2:+.1f} lb"
         yoy2s = "—" if pd.isna(yoy2) else f"{yoy2:+.1f} lb"
-        yoy_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(yoy2)}">YoY {yoy2s}</span>' if y_d2 else ""
+        yago_lbl  = yago_d.strftime("%b %d, %Y") if yago_d else "yr ago"
+        wow_sp  = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
+                   f'font-size:0.7rem;color:{_fc(wow2)}">WoW {wow2s}</span>') if has_wow else ""
+        yoy_sp  = (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;'
+                   f'font-size:0.7rem;color:{_fc(yoy2)}">vs {yago_lbl} {yoy2s}</span>') if y_d2 else ""
         col.markdown(f"""
         <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
           border-top:3px solid {JSA_GREEN};border-radius:6px;padding:14px 16px">
@@ -1306,8 +1313,7 @@ def _render_ams_page():
             letter-spacing:.07em;margin-bottom:6px">{label}</div>
           <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{cv2s}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
-              font-size:0.7rem;color:{_fc(wow2)}">WoW {wow2s}</span>
+            {wow_sp}
             {yoy_sp}
           </div>
         </div>""", unsafe_allow_html=True)
@@ -1397,7 +1403,7 @@ def _render_summary():
 
     st.markdown(
         f'<div class="sec-hdr" style="font-size:0.8rem;color:#6fa8c4">'
-        f'🗓️ AMS Weekly Slaughter — Week Ending {wk_str}</div>',
+        f'🗓️ AMS Weekly — Cattle Slaughter &amp; Weights &nbsp;·&nbsp; Week Ending {wk_str}</div>',
         unsafe_allow_html=True,
     )
 
@@ -1406,37 +1412,69 @@ def _render_summary():
         return f"{v:+.1f}%" if pct else f"{v:+,.0f}"
     def _fc(v): return COL_POS if (not pd.isna(v) and v >= 0) else COL_NEG
 
-    sp_colors = {"Cattle": JSA_GREEN_LT, "Calves": "#c4b456", "Hogs": "#c98a56", "Sheep": "#6fa8c4"}
-    ams_cols  = st.columns(4)
-    for col, sp in zip(ams_cols, ["Cattle", "Calves", "Hogs", "Sheep"]):
-        cv  = slaughter.get(curr_d, {}).get(sp, float("nan")) if curr_d else float("nan")
-        pv  = slaughter.get(prev_d, {}).get(sp, float("nan")) if prev_d else float("nan")
-        yv  = slaughter.get(yago_d, {}).get(sp, float("nan")) if yago_d else float("nan")
-        wow = cv - pv if not (pd.isna(cv) or pd.isna(pv)) else float("nan")
-        yoy = cv - yv if not (pd.isna(cv) or pd.isna(yv)) else float("nan")
-        wow_p = wow/pv*100  if (not pd.isna(pv) and pv != 0) else float("nan")
-        yoy_p = yoy/yv*100  if (not pd.isna(yv) and yv != 0) else float("nan")
-        ytd_c = slaughter.get(f"YTD_{curr_d.year if curr_d else ''}", {}).get(sp, float("nan"))
-        ytd_p = slaughter.get(f"YTD_{(curr_d.year-1) if curr_d else ''}", {}).get(sp, float("nan"))
-        ytd_g = (ytd_c-ytd_p)/ytd_p*100 if (not (pd.isna(ytd_c) or pd.isna(ytd_p)) and ytd_p != 0) else float("nan")
-        cv_s  = "—" if pd.isna(cv) else f"{cv:,.0f}"
-        tc    = sp_colors.get(sp, JSA_GREEN)
+    wts_ams = ams.get("weights", {})
+
+    # ── 3 cattle-focused tiles: Head Count, Live Weight, Dressed Weight ──────
+    # Helper: safe get from slaughter dict
+    def _sl(d):
+        return slaughter.get(d, {}).get("Cattle", float("nan")) if d else float("nan")
+    def _wt(basis, d):
+        return wts_ams.get(basis, {}).get(d, {}).get("Cattle", float("nan")) if d else float("nan")
+
+    # Pre-compute all six values
+    sl_curr = _sl(curr_d);    sl_prev = _sl(prev_d);    sl_yago = _sl(yago_d)
+    lv_curr = _wt("live", curr_d); lv_prev = _wt("live", prev_d); lv_yago = _wt("live", yago_d)
+    dr_curr = _wt("dressed", curr_d); dr_prev = _wt("dressed", prev_d); dr_yago = _wt("dressed", yago_d)
+
+    ytd_c_sl = slaughter.get(f"YTD_{curr_d.year if curr_d else ''}", {}).get("Cattle", float("nan"))
+    ytd_p_sl = slaughter.get(f"YTD_{(curr_d.year-1) if curr_d else ''}", {}).get("Cattle", float("nan"))
+    ytd_g_sl = (ytd_c_sl-ytd_p_sl)/ytd_p_sl*100 if (not (pd.isna(ytd_c_sl) or pd.isna(ytd_p_sl)) and ytd_p_sl != 0) else float("nan")
+
+    prev_wk_str = prev_d.strftime("%b %d") if prev_d else "prior wk"
+    yago_str    = yago_d.strftime("%b %d, %Y") if yago_d else "yr ago"
+
+    def _tile(col, label, value, unit, wow_val, wow_pct, yoy_val, yoy_pct, extra_html, border_color):
+        val_s = "—" if pd.isna(value) else (f"{value:,.0f}" if unit == "head" else f"{value:,.0f}")
         col.markdown(f"""
         <div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};
-          border-top:3px solid {tc};border-radius:6px;padding:14px 16px">
+          border-top:3px solid {border_color};border-radius:6px;padding:14px 16px">
           <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;
-            letter-spacing:.07em;margin-bottom:6px">{sp}</div>
-          <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{cv_s}</div>
+            letter-spacing:.07em;margin-bottom:4px">{label}</div>
+          <div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;line-height:1.1;margin-bottom:10px">
+            {val_s} <span style="font-size:0.85rem;color:{DM_MUTED}">{unit}</span>
+          </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
             <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
-              font-size:0.7rem;color:{_fc(wow)}">WoW {_fd(wow_p,True)}</span>
+              font-size:0.7rem;color:{_fc(wow_val)}">WoW {_fd(wow_pct,True)}</span>
             <span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;
-              font-size:0.7rem;color:{_fc(yoy)}">YoY {_fd(yoy_p,True)}</span>
+              font-size:0.7rem;color:{_fc(yoy_val)}">YoY {_fd(yoy_pct,True)}</span>
           </div>
-          <div style="color:{DM_MUTED};font-size:0.7rem">
-            YTD vs prior yr: <span style="color:{_fc(ytd_g)}">{_fd(ytd_g,True)}</span>
-          </div>
+          {extra_html}
         </div>""", unsafe_allow_html=True)
+
+    def _deltas(curr, prev, yago):
+        wow_v = curr-prev if not (pd.isna(curr) or pd.isna(prev)) else float("nan")
+        yoy_v = curr-yago if not (pd.isna(curr) or pd.isna(yago)) else float("nan")
+        wow_p = wow_v/prev*100 if (not pd.isna(wow_v) and prev != 0) else float("nan")
+        yoy_p = yoy_v/yago*100 if (not pd.isna(yoy_v) and yago != 0) else float("nan")
+        return wow_v, wow_p, yoy_v, yoy_p
+
+    sl_wow, sl_wow_p, sl_yoy, sl_yoy_p = _deltas(sl_curr, sl_prev, sl_yago)
+    lv_wow, lv_wow_p, lv_yoy, lv_yoy_p = _deltas(lv_curr, lv_prev, lv_yago)
+    dr_wow, dr_wow_p, dr_yoy, dr_yoy_p = _deltas(dr_curr, dr_prev, dr_yago)
+
+    ytd_html = (f'<div style="color:{DM_MUTED};font-size:0.7rem">'
+                f'YTD vs prior yr: <span style="color:{_fc(ytd_g_sl)}">{_fd(ytd_g_sl,True)}</span></div>')
+    ref_html = (f'<div style="color:{DM_MUTED};font-size:0.68rem;margin-top:4px">'
+                f'vs {prev_wk_str} &amp; {yago_str}</div>')
+
+    ams_cols = st.columns(3)
+    _tile(ams_cols[0], "Cattle Slaughter", sl_curr, "head",
+          sl_wow, sl_wow_p, sl_yoy, sl_yoy_p, ytd_html, JSA_GREEN_LT)
+    _tile(ams_cols[1], "Avg Live Weight — Cattle", lv_curr, "lb",
+          lv_wow, lv_wow_p, lv_yoy, lv_yoy_p, ref_html, "#6fa8c4")
+    _tile(ams_cols[2], "Avg Dressed Weight — Cattle", dr_curr, "lb",
+          dr_wow, dr_wow_p, dr_yoy, dr_yoy_p, ref_html, "#c98a56")
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
 
