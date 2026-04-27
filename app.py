@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 import requests
 import io
 import re
-import base64
 from datetime import datetime
 
 # ── JSA Brand Colors ───────────────────────────────────────────────────────────
@@ -28,10 +27,6 @@ JPSI_GREEN  = JSA_GREEN_LT  # alias used throughout
 JSA_LOGO_FULL  = "https://www.jpsi.com/wp-content/themes/gate39media/img/logo-full.png"
 JSA_LOGO_WHITE = "https://www.jpsi.com/wp-content/themes/gate39media/img/logo-white.png"
 
-import os as _os
-_LOGO_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "logo-full.png")
-with open(_LOGO_PATH, "rb") as _f:
-    JSA_LOGO_WHITE_B64 = "data:image/png;base64," + base64.b64encode(_f.read()).decode("utf-8")
 
 CLASS_COLORS = {
     "STEERS":     "#8db89a",   # JSA light green
@@ -470,15 +465,6 @@ def _apply(fig, title="", height=420, y_title="", y_range=None):
         fig.update_yaxes(**AXIS_STYLE, title_text=y_title, range=y_range)
     else:
         fig.update_yaxes(**AXIS_STYLE, title_text=y_title, autorange=True)
-    fig.update_layout(images=[dict(
-        source=JSA_LOGO_WHITE_B64,
-        xref="paper", yref="paper",
-        x=0.5, y=0.5,
-        sizex=0.3, sizey=0.3,
-        xanchor="center", yanchor="middle",
-        opacity=0.8,
-        layer="above",
-    )])
 
 
 def _tight_range(series, pad_pct=0.04):
