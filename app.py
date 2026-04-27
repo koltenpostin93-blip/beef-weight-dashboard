@@ -248,10 +248,14 @@ def _fetch_ams_raw() -> dict:
     if m:
         for line in m.group(1).splitlines():
             parts = line.strip().split()
-            d = _pd(parts[0]) if parts else None
+            if not parts: continue
+            d = _pd(parts[0])
             if d and len(parts) >= 5:
                 vals = [_num(p) for p in parts[1:6]]
                 meat_prod[d] = {"Beef":vals[0],"Calf/Veal":vals[1],"Pork":vals[2],"Lamb":vals[3],"Total":vals[4]}
+            elif len(parts) >= 7 and parts[1] == "YTD":
+                # e.g. "2026 YTD  7735.4  6.9  8950.0  37.9  16730.2"
+                meat_prod[f"YTD_{parts[0]}"] = {"Beef":_num(parts[2]),"Calf/Veal":_num(parts[3]),"Pork":_num(parts[4]),"Lamb":_num(parts[5]),"Total":_num(parts[6])}
     res["meat_prod"] = meat_prod
     return res
 
@@ -544,6 +548,19 @@ latest_iso  = int(wt.loc[wt["week_ending"] == latest_date, "iso_week"].iloc[0])
 
 vol_latest_date = vol["week_ending"].max() if not vol.empty else None
 
+# ── Compute weekly beef production from NASS (head × dressed wt / 1M lbs) ─────
+# Always uses dressed basis regardless of sidebar toggle — production is dressed
+_wt_dressed = raw[raw["unit_desc"].str.contains("DRESSED", case=False, na=False)]
+_vol_ge500  = (vol[vol["class_desc"] == "GE 500 LBS"]
+               [["year","iso_week","week_ending","Value"]]
+               .rename(columns={"Value":"head_count"}))
+_wt_ge500   = (_wt_dressed[_wt_dressed["class_desc"] == "GE 500 LBS"]
+               [["year","iso_week","Value"]]
+               .rename(columns={"Value":"dressed_wt"}))
+beef_prod_nass = _vol_ge500.merge(_wt_ge500, on=["year","iso_week"], how="inner").copy()
+beef_prod_nass["prod_mlbs"]    = beef_prod_nass["head_count"] * beef_prod_nass["dressed_wt"] / 1_000_000
+beef_prod_nass["day_of_year"]  = beef_prod_nass["week_ending"].dt.dayofyear
+
 with st.spinner("Loading USDA AMS data…"):
     _ams_meta = _fetch_ams_raw()
 _ams_rpt_date   = _ams_meta.get("report_date")
@@ -671,10 +688,11 @@ with hdr_r:
 st.divider()
 
 # ── Top-level page tabs ────────────────────────────────────────────────────────
-_page_summary, _page_nass, _page_ams = st.tabs([
+_page_summary, _page_nass, _page_ams, _page_prod = st.tabs([
     "⭐  Summary",
     "📊  NASS Beef Weights & Slaughter",
     "🗓️  AMS Weekly Slaughter",
+    "🥩  Beef Production",
 ])
 
 
@@ -1328,6 +1346,64 @@ def _render_ams_page():
 
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
+    # ── Beef Meat Production tile ─────────────────────────────────────────────
+    st.markdown(f'<div class="sec-hdr">Beef Meat Production &nbsp;·&nbsp; <span style="color:{DM_MUTED};font-size:0.65rem;font-weight:400">million lbs · federally inspected</span></div>',
+                unsafe_allow_html=True)
+    mp_dated = sorted([k for k in meat_prod if not isinstance(k, str)], reverse=True)
+    mp_curr = mp_dated[0] if mp_dated else None
+    mp_prev = mp_dated[1] if len(mp_dated) > 1 else None
+    mp_yago = mp_dated[2] if len(mp_dated) > 2 else None
+    mp_yr   = mp_curr.year if mp_curr else datetime.now().year
+
+    def _mpv(d):
+        return meat_prod.get(d, {}).get("Beef", float("nan")) if d else float("nan")
+
+    bc = _mpv(mp_curr); bp = _mpv(mp_prev); by = _mpv(mp_yago)
+    ytd_c = meat_prod.get(f"YTD_{mp_yr}", {}).get("Beef", float("nan"))
+    ytd_p = meat_prod.get(f"YTD_{mp_yr-1}", {}).get("Beef", float("nan"))
+    ytd_g = (ytd_c-ytd_p)/ytd_p*100 if not (pd.isna(ytd_c) or pd.isna(ytd_p)) and ytd_p != 0 else float("nan")
+
+    mp_wow = bc-bp if not (pd.isna(bc) or pd.isna(bp)) else float("nan")
+    mp_yoy = bc-by if not (pd.isna(bc) or pd.isna(by)) else float("nan")
+    mp_wow_p = mp_wow/bp*100 if (not pd.isna(mp_wow) and bp != 0) else float("nan")
+    mp_yoy_p = mp_yoy/by*100 if (not pd.isna(mp_yoy) and by != 0) else float("nan")
+
+    bc_s    = "—" if pd.isna(bc)    else f"{bc:,.1f}"
+    ytd_c_s = "—" if pd.isna(ytd_c) else f"{ytd_c:,.1f}"
+    ytd_p_s = "—" if pd.isna(ytd_p) else f"{ytd_p:,.1f}"
+    _mp_wow_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(mp_wow)}">WoW {_fd(mp_wow_p,True)}</span>' if not pd.isna(mp_wow) else ""
+    _mp_yoy_sp = f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc(mp_yoy)}">YoY {_fd(mp_yoy_p,True)}</span>' if not pd.isna(mp_yoy) else ""
+    _mp_badges = f"{_mp_wow_sp} {_mp_yoy_sp}".strip()
+    _ytd_color = _fc(ytd_g) if not pd.isna(ytd_g) else DM_MUTED
+    _ytd_g_s   = _fd(ytd_g, True) if not pd.isna(ytd_g) else "—"
+
+    mp_col1, mp_col2, mp_col3 = st.columns([1, 1, 2])
+    mp_col1.markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid #c98a56;border-radius:6px;padding:14px 16px">'
+        f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Beef Production · Wk Ending {mp_curr.strftime("%b %d, %Y") if mp_curr else "N/A"}</div>'
+        f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{bc_s} <span style="font-size:0.85rem;color:{DM_MUTED}">M lbs</span></div>'
+        f'<div style="display:flex;gap:6px;flex-wrap:wrap">{_mp_badges}</div>'
+        f'</div>', unsafe_allow_html=True)
+    mp_col2.markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid #9b89c4;border-radius:6px;padding:14px 16px">'
+        f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">{mp_yr} YTD Beef Production</div>'
+        f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:6px">{ytd_c_s} <span style="font-size:0.85rem;color:{DM_MUTED}">M lbs</span></div>'
+        f'<div style="color:{DM_MUTED};font-size:0.72rem">vs {mp_yr-1} YTD: {ytd_p_s} M lbs &nbsp;<span style="color:{_ytd_color};font-weight:600">{_ytd_g_s}</span></div>'
+        f'</div>', unsafe_allow_html=True)
+    mp_col3.markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid {DM_BORDER};border-radius:6px;padding:14px 16px">'
+        f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">All Meat Production — Week Ending {mp_curr.strftime("%b %d, %Y") if mp_curr else "N/A"} (M lbs)</div>'
+        + "".join([
+            f'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+            f'<span style="color:{DM_MUTED};font-size:0.78rem">{k}</span>'
+            f'<span style="color:{DM_TEXT};font-weight:600;font-size:0.78rem">{meat_prod.get(mp_curr,{}).get(k,float("nan")):.1f}</span>'
+            f'</div>'
+            for k in ["Beef","Calf/Veal","Pork","Lamb","Total"] if mp_curr and not pd.isna(meat_prod.get(mp_curr,{}).get(k,float("nan")))
+        ])
+        + f'</div>', unsafe_allow_html=True)
+
+    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
     # ── Charts side by side ───────────────────────────────────────────────────
     c_l, c_r = st.columns(2)
     with c_l:
@@ -1599,6 +1675,198 @@ def _render_summary():
     st.plotly_chart(fig, use_container_width=True)
 
 
+# ── Beef Production tab ───────────────────────────────────────────────────────
+
+def _render_beef_production():
+    """Beef Production tab — AMS weekly tile + NASS-computed seasonal chart."""
+
+    ams       = _fetch_ams_raw()
+    meat_prod = ams.get("meat_prod", {})
+
+    mp_dated = sorted([k for k in meat_prod if not isinstance(k, str)], reverse=True)
+    mp_curr  = mp_dated[0] if mp_dated           else None
+    mp_prev  = mp_dated[1] if len(mp_dated) > 1  else None
+    mp_yago  = mp_dated[2] if len(mp_dated) > 2  else None
+    mp_yr    = mp_curr.year if mp_curr else datetime.now().year
+
+    def _mpv(d): return meat_prod.get(d, {}).get("Beef", float("nan")) if d else float("nan")
+    def _fd2(v, pct=False):
+        if pd.isna(v): return "—"
+        return f"{v:+.1f}%" if pct else f"{v:+,.1f}"
+    def _fc2(v): return COL_POS if (not pd.isna(v) and v >= 0) else COL_NEG
+
+    bc = _mpv(mp_curr); bp = _mpv(mp_prev); by = _mpv(mp_yago)
+    ytd_c = meat_prod.get(f"YTD_{mp_yr}",   {}).get("Beef", float("nan"))
+    ytd_p = meat_prod.get(f"YTD_{mp_yr-1}", {}).get("Beef", float("nan"))
+    ytd_g = (ytd_c-ytd_p)/ytd_p*100 if not (pd.isna(ytd_c) or pd.isna(ytd_p)) and ytd_p != 0 else float("nan")
+
+    mp_wow   = bc-bp if not (pd.isna(bc) or pd.isna(bp)) else float("nan")
+    mp_yoy   = bc-by if not (pd.isna(bc) or pd.isna(by)) else float("nan")
+    mp_wow_p = mp_wow/bp*100 if (not pd.isna(mp_wow) and bp != 0) else float("nan")
+    mp_yoy_p = mp_yoy/by*100 if (not pd.isna(mp_yoy) and by != 0) else float("nan")
+
+    wk_str  = mp_curr.strftime("%b %d, %Y") if mp_curr else "N/A"
+    rpt_str = ams.get("report_date","")
+    rpt_str = rpt_str.strftime("%b %d, %Y") if hasattr(rpt_str,"strftime") else str(rpt_str)
+
+    # ── Header banner ────────────────────────────────────────────────────────
+    st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:space-between;background:{DM_SURFACE2};border:1px solid {DM_BORDER};border-left:4px solid #c98a56;border-radius:6px;padding:14px 20px;margin-bottom:18px">
+  <div>
+    <div style="color:{DM_TEXT};font-size:1.1rem;font-weight:700">🥩 Beef Meat Production Tracker</div>
+    <div style="color:{DM_MUTED};font-size:0.78rem;margin-top:3px">USDA AMS · Federally Inspected · million lbs · Chart built from NASS weekly slaughter data</div>
+  </div>
+  <div style="text-align:right">
+    <div style="color:{DM_MUTED};font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em">Week Ending</div>
+    <div style="color:#c98a56;font-size:1.15rem;font-weight:700">{wk_str}</div>
+    <div style="color:{DM_MUTED};font-size:0.68rem">Report: {rpt_str}</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # ── KPI tiles ────────────────────────────────────────────────────────────
+    st.markdown(f'<div class="sec-hdr">Weekly Beef Production vs 2025</div>', unsafe_allow_html=True)
+
+    bc_s    = "—" if pd.isna(bc)    else f"{bc:,.1f}"
+    ytd_c_s = "—" if pd.isna(ytd_c) else f"{ytd_c:,.1f}"
+    ytd_p_s = "—" if pd.isna(ytd_p) else f"{ytd_p:,.1f}"
+    by_s    = "—" if pd.isna(by)    else f"{by:,.1f}"
+
+    badges_wk = " ".join(filter(None, [
+        (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc2(mp_wow)}">WoW {_fd2(mp_wow_p,True)}</span>') if not pd.isna(mp_wow) else "",
+        (f'<span style="background:{DM_SURFACE2};border-radius:3px;padding:2px 8px;font-size:0.7rem;color:{_fc2(mp_yoy)}">YoY {_fd2(mp_yoy_p,True)}</span>') if not pd.isna(mp_yoy) else "",
+    ]))
+
+    t1, t2, t3 = st.columns(3)
+    t1.markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid #c98a56;border-radius:6px;padding:14px 16px">'
+        f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Beef Production · {wk_str}</div>'
+        f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:10px">{bc_s} <span style="font-size:0.85rem;color:{DM_MUTED}">M lbs</span></div>'
+        f'<div style="display:flex;gap:6px;flex-wrap:wrap">{badges_wk}</div>'
+        f'<div style="color:{DM_MUTED};font-size:0.7rem;margin-top:8px">Year ago ({mp_yago.strftime("%b %d, %Y") if mp_yago else "N/A"}): {by_s} M lbs</div>'
+        f'</div>', unsafe_allow_html=True)
+
+    ytd_color = _fc2(ytd_g)
+    t2.markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid #9b89c4;border-radius:6px;padding:14px 16px">'
+        f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">{mp_yr} YTD Beef Production</div>'
+        f'<div style="color:{DM_TEXT};font-size:1.7rem;font-weight:700;margin-bottom:8px">{ytd_c_s} <span style="font-size:0.85rem;color:{DM_MUTED}">M lbs</span></div>'
+        f'<div style="color:{DM_MUTED};font-size:0.72rem">{mp_yr-1} YTD: {ytd_p_s} M lbs &nbsp;<span style="color:{ytd_color};font-weight:700;font-size:0.85rem">{_fd2(ytd_g,True)}</span></div>'
+        f'</div>', unsafe_allow_html=True)
+
+    # All meats breakdown
+    all_meats = {k: meat_prod.get(mp_curr,{}).get(k,float("nan")) for k in ["Beef","Calf/Veal","Pork","Lamb","Total"]}
+    rows_html  = "".join(
+        f'<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid {DM_BORDER}">'
+        f'<span style="color:{DM_MUTED};font-size:0.78rem">{k}</span>'
+        f'<span style="color:{"#c98a56" if k=="Beef" else DM_TEXT};font-weight:{"700" if k in ("Beef","Total") else "400"};font-size:0.78rem">{v:.1f} M lbs</span>'
+        f'</div>'
+        for k, v in all_meats.items() if not pd.isna(v)
+    )
+    t3.markdown(
+        f'<div style="background:{DM_SURFACE};border:1px solid {DM_BORDER};border-top:3px solid {DM_BORDER};border-radius:6px;padding:14px 16px">'
+        f'<div style="color:{DM_MUTED};font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">All Meats · Wk {wk_str}</div>'
+        f'{rows_html}'
+        f'</div>', unsafe_allow_html=True)
+
+    st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+    # ── Seasonal trend chart (NASS-computed: head × dressed wt / 1M) ─────────
+    st.markdown(f'<div class="sec-hdr">Beef Production — Seasonal Trend &nbsp;·&nbsp; <span style="color:{DM_MUTED};font-size:0.65rem;font-weight:400">Computed: NASS weekly head count × avg dressed weight</span></div>',
+                unsafe_allow_html=True)
+
+    n_yrs_prod = st.slider("Years to show", 3, 10, 6, key="prod_nyrs")
+
+    if beef_prod_nass.empty:
+        st.warning("NASS production data not available.")
+        return
+
+    ly = int(beef_prod_nass["year"].max())
+    yr_list = [y for y in range(ly - n_yrs_prod + 1, ly + 1) if y in beef_prod_nass["year"].unique()]
+
+    all_doys   = sorted(beef_prod_nass["day_of_year"].unique())
+    doy_to_iso = beef_prod_nass.groupby("day_of_year")["iso_week"].first().to_dict()
+
+    # 5yr range + avg
+    olym_hi, olym_lo, olym_avg = [], [], []
+    for d in all_doys:
+        iw = doy_to_iso.get(d, 0)
+        yr_vals = []
+        for i in range(1, 6):
+            sub = beef_prod_nass[(beef_prod_nass["year"] == ly-i) & (beef_prod_nass["iso_week"] == iw)]
+            if not sub.empty:
+                yr_vals.append(float(sub["prod_mlbs"].iloc[0]))
+        olym_hi.append(max(yr_vals)  if yr_vals else float("nan"))
+        olym_lo.append(min(yr_vals)  if yr_vals else float("nan"))
+        olym_avg.append(sum(yr_vals)/len(yr_vals) if yr_vals else float("nan"))
+
+    _prod_palette = ["#6fa8c4","#c98a56","#9b89c4","#c4b456","#e07070","#c8d4ca","#7a9485","#fbbf24"]
+    month_ticks   = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+    month_labels  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=all_doys + all_doys[::-1], y=olym_hi + olym_lo[::-1],
+        fill="toself", fillcolor="rgba(201,138,86,0.10)",
+        line=dict(color="rgba(0,0,0,0)"),
+        name="5yr Range", hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=all_doys, y=olym_avg, name="5yr Avg", mode="lines",
+        line=dict(color="rgba(201,138,86,0.75)", width=1.8, dash="dash"),
+        hovertemplate="5yr avg: %{y:,.1f} M lbs<extra></extra>",
+    ))
+
+    older_yrs = [y for y in yr_list if y != ly]
+    for i, yr in enumerate(older_yrs):
+        yd = beef_prod_nass[beef_prod_nass["year"] == yr].sort_values("day_of_year")
+        fig.add_trace(go.Scatter(
+            x=yd["day_of_year"], y=yd["prod_mlbs"], name=str(yr), mode="lines",
+            line=dict(color=_hex_to_rgba(_prod_palette[i % len(_prod_palette)], 0.55), width=1.4),
+            hovertemplate=f"{yr}: %{{y:,.1f}} M lbs<extra></extra>",
+        ))
+
+    cur = beef_prod_nass[beef_prod_nass["year"] == ly].sort_values("day_of_year")
+    fig.add_trace(go.Scatter(
+        x=cur["day_of_year"], y=cur["prod_mlbs"], name=str(ly), mode="lines+markers",
+        line=dict(color="#c98a56", width=2.8),
+        marker=dict(size=5, color="#c98a56"),
+        hovertemplate=f"{ly}: %{{y:,.1f}} M lbs<extra></extra>",
+    ))
+
+    # Drop AMS dot for the current week if data matches
+    if mp_curr and not pd.isna(bc):
+        fig.add_trace(go.Scatter(
+            x=[mp_curr.timetuple().tm_yday], y=[bc],
+            mode="markers", name=f"AMS Reported ({wk_str})",
+            marker=dict(size=11, color="#c98a56", symbol="star",
+                        line=dict(color="#fff", width=1.5)),
+            hovertemplate=f"AMS: {bc:.1f} M lbs<extra></extra>",
+        ))
+
+    _apply(fig, f"Weekly Beef Production — {ly} vs Prior Years", 520, "Million lbs")
+    fig.update_xaxes(tickmode="array", tickvals=month_ticks, ticktext=month_labels)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # YTD bar comparison
+    st.markdown(f'<div class="sec-hdr">YTD Beef Production — {mp_yr} vs {mp_yr-1}</div>', unsafe_allow_html=True)
+    if not (pd.isna(ytd_c) or pd.isna(ytd_p)):
+        fig_ytd = go.Figure()
+        fig_ytd.add_trace(go.Bar(
+            x=[str(mp_yr-1), str(mp_yr)],
+            y=[ytd_p, ytd_c],
+            marker_color=[_hex_to_rgba("#c98a56", 0.45), "#c98a56"],
+            text=[f"{ytd_p:,.1f} M lbs", f"{ytd_c:,.1f} M lbs"],
+            textposition="outside", textfont=dict(color=DM_TEXT, size=12),
+            hovertemplate="%{x}: %{y:,.1f} M lbs<extra></extra>",
+        ))
+        _apply(fig_ytd, f"YTD Beef Production (thru wk ending {wk_str})", 280, "Million lbs")
+        fig_ytd.update_xaxes(tickmode="linear")
+        st.plotly_chart(fig_ytd, use_container_width=True)
+
+    st.markdown(f'<div style="color:{DM_MUTED};font-size:0.68rem;margin-top:8px">AMS tile: USDA AMS LPGMN SJ_LS712 · Chart: NASS weekly head count × avg dressed weight estimate</div>',
+                unsafe_allow_html=True)
+
+
 # ── Render pages ──────────────────────────────────────────────────────────────
 
 with _page_summary:
@@ -1609,3 +1877,6 @@ with _page_nass:
 
 with _page_ams:
     _render_ams_page()
+
+with _page_prod:
+    _render_beef_production()
